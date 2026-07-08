@@ -9,7 +9,16 @@ type TwibbonCardProps = {
     description: string | null;
     type: string;
     thumbnail: string | null;
+    _count?: {
+      downloads: number;
+    };
   };
+};
+
+// Helper for formatting numbers
+const formatCount = (count: number) => {
+  if (count >= 1000) return (count / 1000).toFixed(1) + "K";
+  return count;
 };
 
 export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
@@ -46,14 +55,11 @@ export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
           {twibbon.title}
         </h3>
         
-        <div className="flex items-center gap-1.5 text-gray-600 mb-2">
-          <User size={13} strokeWidth={3} />
-          <span className="text-xs font-bold">BEM UNSOED</span>
-        </div>
+    l
 
         <div className="flex items-center gap-1.5 text-gray-400">
           <Users size={13} strokeWidth={3} />
-          <span className="text-xs font-bold">Official</span>
+          <span className="text-xs font-bold">{twibbon._count ? formatCount(twibbon._count.downloads) : 0} digunakan</span>
         </div>
       </div>
     </Link>

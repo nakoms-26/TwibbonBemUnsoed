@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { createTwibbonSchema, updateTwibbonSchema } from "@/lib/schemas";
 import { redirect } from "next/navigation";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
@@ -50,22 +51,27 @@ export async function createTwibbon(formData: FormData) {
     throw new Error("Unauthorized");
   }
 
-  const title = formData.get("title") as string;
-  const slug = formData.get("slug") as string;
-  const description = formData.get("description") as string;
-  const type = formData.get("type") as "IMAGE" | "VIDEO";
-  const isActive = formData.get("isActive") === "on";
+  const rawData = {
+    title: formData.get("title"),
+    slug: formData.get("slug"),
+    description: formData.get("description") || undefined,
+    type: formData.get("type"),
+    isActive: formData.get("isActive") === "on",
+    layerFile: formData.get("layerFile"),
+    thumbnailFile: formData.get("thumbnailFile"),
+  };
 
-  const layerFile = formData.get("layerFile") as File;
-  const thumbnailFile = formData.get("thumbnailFile") as File;
+  const validatedFields = createTwibbonSchema.safeParse(rawData);
 
-  if (!title || !slug || !layerFile.name || !thumbnailFile.name) {
-    throw new Error("Semua field wajib diisi");
+  if (!validatedFields.success) {
+    throw new Error(validatedFields.error.errors[0].message);
   }
 
+  const { title, slug, description, type, isActive, layerFile, thumbnailFile } = validatedFields.data;
+
   // Simpan file
-  const layerUrl = await saveFile(layerFile, type === "VIDEO" ? "videos" : "images");
-  const thumbnailUrl = await saveFile(thumbnailFile, "thumbnails");
+  const layerUrl = await saveFile(layerFile as File, type === "VIDEO" ? "videos" : "images");
+  const thumbnailUrl = await saveFile(thumbnailFile as File, "thumbnails");
 
   // Default config yang simpel
   const defaultConfig = {
@@ -102,19 +108,24 @@ export async function updateTwibbon(formData: FormData) {
     throw new Error("Unauthorized");
   }
 
-  const id = formData.get("id") as string;
-  const title = formData.get("title") as string;
-  const slug = formData.get("slug") as string;
-  const description = formData.get("description") as string;
-  const type = formData.get("type") as "IMAGE" | "VIDEO";
-  const isActive = formData.get("isActive") === "on";
+  const rawData = {
+    id: formData.get("id"),
+    title: formData.get("title"),
+    slug: formData.get("slug"),
+    description: formData.get("description") || undefined,
+    type: formData.get("type"),
+    isActive: formData.get("isActive") === "on",
+    layerFile: formData.get("layerFile"),
+    thumbnailFile: formData.get("thumbnailFile"),
+  };
 
-  const layerFile = formData.get("layerFile") as File;
-  const thumbnailFile = formData.get("thumbnailFile") as File;
+  const validatedFields = updateTwibbonSchema.safeParse(rawData);
 
-  if (!id || !title || !slug) {
-    throw new Error("Field esensial wajib diisi");
+  if (!validatedFields.success) {
+    throw new Error(validatedFields.error.errors[0].message);
   }
+
+  const { id, title, slug, description, type, isActive, layerFile, thumbnailFile } = validatedFields.data;
 
   const existingTwibbon = await prisma.twibbon.findUnique({
     where: { id: parseInt(id) }
@@ -128,12 +139,12 @@ export async function updateTwibbon(formData: FormData) {
   let layerUrl = existingTwibbon.overlayFile;
   let thumbnailUrl = existingTwibbon.thumbnail;
 
-  if (layerFile && layerFile.name && layerFile.size > 0) {
-    layerUrl = await saveFile(layerFile, type === "VIDEO" ? "videos" : "images");
+  if (layerFile && layerFile.size > 0) {
+    layerUrl = await saveFile(layerFile as File, type === "VIDEO" ? "videos" : "images");
   }
   
-  if (thumbnailFile && thumbnailFile.name && thumbnailFile.size > 0) {
-    thumbnailUrl = await saveFile(thumbnailFile, "thumbnails");
+  if (thumbnailFile && thumbnailFile.size > 0) {
+    thumbnailUrl = await saveFile(thumbnailFile as File, "thumbnails");
   }
 
   await prisma.twibbon.update({
