@@ -93,7 +93,7 @@ export async function createTwibbon(formData: FormData) {
       overlayFile: layerUrl,
       thumbnail: thumbnailUrl,
       isActive,
-      config: JSON.stringify(defaultConfig),
+      config: defaultConfig,
     }
   });
 
