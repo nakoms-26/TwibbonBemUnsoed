@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import Cropper from "react-easy-crop";
+import { renderChromaKey } from "@/lib/webglChroma";
 
 // helper to load image for canvas
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -83,8 +84,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
 
     const video = videoRef.current;
     const canvas = previewCanvasRef.current;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
 
     let animationId: number;
 
@@ -94,32 +93,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
         return;
       }
 
-      if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
-      if (canvas.height !== video.videoHeight)
-        canvas.height = video.videoHeight;
-
       if (video.videoWidth > 0 && video.videoHeight > 0) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = frame.data;
-
-        // Specific Green Screen removal (Chroma Key)
-        // Mencegah dedaunan hijau atau elemen kuning ikut terhapus
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-
-          if (
-            g > 120 &&
-            g > r * 1.6 &&
-            g > b * 1.6 &&
-            g - Math.max(r, b) > 50
-          ) {
-            data[i + 3] = 0; // Alpha 0
-          }
+        try {
+          renderChromaKey(video, canvas);
+        } catch (e) {
+          console.error(e);
         }
-        ctx.putImageData(frame, 0, 0);
       }
       animationId = requestAnimationFrame(renderFrame);
     };
@@ -259,31 +238,14 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
           canvas.height,
         );
 
-        // Draw video frame & chroma key
-        const tempCanvas = document.createElement("canvas");
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        const tCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
-        if (tCtx) {
-          tCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const frame = tCtx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = frame.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-
-            if (
-              g > 120 &&
-              g > r * 1.6 &&
-              g > b * 1.6 &&
-              g - Math.max(r, b) > 50
-            ) {
-              data[i + 3] = 0;
-            }
+        // Draw video frame & chroma key via WebGL
+        if (previewCanvasRef.current) {
+          try {
+            renderChromaKey(video, previewCanvasRef.current);
+            ctx.drawImage(previewCanvasRef.current, 0, 0, canvas.width, canvas.height);
+          } catch (e) {
+            console.error("WebGL error during export", e);
           }
-          tCtx.putImageData(frame, 0, 0);
-          ctx.drawImage(tempCanvas, 0, 0);
         }
 
         if (!video.ended && video.currentTime < video.duration) {

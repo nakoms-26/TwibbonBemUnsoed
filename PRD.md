@@ -59,7 +59,7 @@ Tanpa login. Bisa:
 **Frontend**
 - React
 - Tailwind CSS
-- Konva.js (canvas editor untuk compositing foto + overlay gambar)
+- Canvas API murni (untuk compositing foto + overlay gambar)
 - React Easy Crop (crop & zoom foto)
 - **WebGL Shader** (chroma key — hapus green screen video overlay secara real-time di GPU)
 
@@ -162,7 +162,7 @@ src/
       upload/
         route.ts           → POST upload file
   components/
-    TwibbonEditor.tsx      → Komponen editor (Konva.js + Crop)
+    TwibbonEditor.tsx      → Komponen editor (Canvas API + Crop)
     TwibbonCard.tsx        → Card preview twibbon
     AdminLayout.tsx        → Layout dashboard admin
   lib/
@@ -288,7 +288,7 @@ Upload Foto → Crop → Zoom → Geser → Preview → Download
 
 **Mode Image (PNG overlay):**
 - **React Easy Crop** — crop & zoom foto user
-- **Konva.js / Canvas API** — compositing foto user + overlay PNG transparan
+- **Canvas API murni** — compositing foto user + overlay PNG transparan
 - Hasil di-render di browser → user download langsung
 
 **Mode Video (MP4 overlay + Chroma Key):**
