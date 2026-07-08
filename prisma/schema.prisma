@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  name      String
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  @@map("admin")
+}
+
+model Twibbon {
+  id          Int         @id @default(autoincrement())
+  title       String
+  slug        String      @unique
+  description String?     @db.Text
+  type        OverlayType
+  overlayFile String
+  thumbnail   String
+  config      Json
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  downloads   Download[]
+
+  @@map("twibbon")
+}
+
+model Download {
+  id        Int      @id @default(autoincrement())
+  twibbonId Int
+  ipAddress String
+  createdAt DateTime @default(now())
+
+  twibbon   Twibbon  @relation(fields: [twibbonId], references: [id], onDelete: Cascade)
+
+  @@map("download")
+}
+
+enum OverlayType {
+  IMAGE
+  VIDEO
+}
