@@ -26,20 +26,16 @@ export default function Navbar() {
   // if scrolled down OR if the mobile menu overlay is open.
   const isLightMode = isScrolled || isMobileMenuOpen;
 
-  const linkClass = !isLightMode 
-    ? "border-white/30 text-white hover:bg-white/10" 
-    : "border-gray-200 text-gray-900 hover:bg-gray-100";
-
   return (
     <>
       <nav 
-        className={`w-full z-50 fixed top-0 left-0 right-0 transition-all duration-300 ${
-          isLightMode ? "bg-white border-b-4 border-gray-900 shadow-sm" : "bg-transparent py-2"
+        className={`w-full z-50 fixed top-0 left-0 right-0 transition-all duration-500 ${
+          isLightMode ? "bg-white border-b-4 border-gray-900 shadow-sm py-2" : "bg-transparent py-4 md:py-6"
         }`}
       >
-        <div className="flex items-center justify-between px-6 md:px-10 max-w-[1440px] mx-auto w-full py-4 md:py-6">
+        <div className="flex items-center justify-between px-6 md:px-10 max-w-[1440px] mx-auto w-full">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-1 group z-[60]">
+          <Link href="/" className="flex items-center gap-1 group z-[60] hover:scale-105 transition-transform duration-300">
             <div
               className={`${!isLightMode ? "bg-white text-black" : "bg-black text-white"} font-black tracking-tight text-xs md:text-sm px-3 py-1.5 rounded-2xl rounded-bl-sm relative shadow-sm transition-colors`}
             >
@@ -50,21 +46,31 @@ export default function Navbar() {
               />
             </div>
             <div
-              className={`bg-[#CCFF00] text-black font-black text-xs md:text-sm px-3 py-1.5 rounded-full border-[1.5px] ${!isLightMode ? "border-white" : "border-transparent"} shadow-sm transition-colors`}
+              className={`bg-[#CCFF00] text-black font-black text-xs md:text-sm px-3 py-1.5 rounded-full border-[2px] ${!isLightMode ? "border-transparent" : "border-gray-900"} group-hover:shadow-[4px_4px_0px_rgba(0,0,0,0.2)] transition-all`}
             >
               BEM UNSOED
             </div>
           </Link>
 
           {/* Desktop Links */}
-          <div className="hidden md:flex items-center space-x-2">
-            <Link href="/twibbons" className={`px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${linkClass}`}>
+          <div className={`hidden md:flex items-center space-x-1 p-1.5 rounded-full border transition-all duration-500 ${
+            !isLightMode 
+              ? "bg-white/10 backdrop-blur-md border-white/20 shadow-lg" 
+              : "bg-gray-100 border-gray-200"
+          }`}>
+            <Link href="/twibbons" className={`px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
+              !isLightMode ? "text-white/90 hover:bg-white hover:text-[#0038FF]" : "text-gray-600 hover:bg-white hover:text-black hover:shadow-sm"
+            }`}>
               Twibbon
             </Link>
-            <Link href="#" className={`px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${linkClass}`}>
+            <Link href="#" className={`px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
+              !isLightMode ? "text-white/90 hover:bg-white hover:text-[#0038FF]" : "text-gray-600 hover:bg-white hover:text-black hover:shadow-sm"
+            }`}>
               Cara Pakai
             </Link>
-            <Link href="#" className={`px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${linkClass}`}>
+            <Link href="#" className={`px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
+              !isLightMode ? "text-white/90 hover:bg-white hover:text-[#0038FF]" : "text-gray-600 hover:bg-white hover:text-black hover:shadow-sm"
+            }`}>
               Tentang
             </Link>
           </div>
@@ -73,10 +79,10 @@ export default function Navbar() {
           <div className="flex items-center gap-4 z-[60]">
             <Link
               href="/admin/login"
-              className={`hidden md:block px-6 py-2 rounded-full border-2 text-xs md:text-sm font-black uppercase tracking-wider transition-colors ${
+              className={`hidden md:block px-6 py-2.5 rounded-full border-2 text-xs md:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                 !isLightMode
-                  ? "border-white text-white hover:bg-white hover:text-[#0038FF]" 
-                  : "border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white"
+                  ? "border-white text-white hover:bg-[#CCFF00] hover:text-black hover:border-[#CCFF00] hover:shadow-[0_0_20px_rgba(204,255,0,0.4)] hover:-translate-y-0.5" 
+                  : "border-gray-900 text-gray-900 hover:bg-[#CCFF00] hover:shadow-[4px_4px_0px_#111827] hover:-translate-y-1"
               }`}
             >
               Buat Twibbon
@@ -84,10 +90,10 @@ export default function Navbar() {
             
             {/* Mobile Hamburger Toggle */}
             <button 
-              className={`md:hidden p-2 rounded-lg border-2 transition-colors ${
+              className={`md:hidden p-2 rounded-lg border-2 transition-all duration-300 ${
                 !isLightMode 
-                  ? "border-white text-white hover:bg-white/10" 
-                  : "border-gray-900 text-gray-900 bg-white hover:bg-gray-100"
+                  ? "border-white text-white hover:bg-white hover:text-[#0038FF]" 
+                  : "border-gray-900 text-gray-900 bg-white hover:bg-[#CCFF00] hover:shadow-[3px_3px_0px_#111827] hover:-translate-y-0.5"
               }`}
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
