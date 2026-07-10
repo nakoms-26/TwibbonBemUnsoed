@@ -9,7 +9,7 @@ const fileSchema = z.custom<File>((val) => val instanceof File, "Harus berupa fi
 
 export const twibbonBaseSchema = z.object({
   title: z.string().min(3, "Judul minimal 3 karakter").max(255, "Judul maksimal 255 karakter"),
-  slug: z.string().min(3, "Slug minimal 3 karakter").regex(/^[a-z0-9-]+$/, "Slug hanya boleh berisi huruf kecil, angka, dan strip (-)"),
+  slug: z.string().min(3, "Slug minimal 3 karakter").regex(/^[a-zA-Z0-9-]+$/, "Slug hanya boleh berisi huruf, angka, dan strip (-)"),
   description: z.string().optional(),
   type: z.enum(["IMAGE", "VIDEO"], { required_error: "Tipe harus IMAGE atau VIDEO" }),
   isActive: z.boolean().default(true),
