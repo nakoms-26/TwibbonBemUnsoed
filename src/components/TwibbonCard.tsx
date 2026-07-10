@@ -55,7 +55,7 @@ export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
           {twibbon.title}
         </h3>
         
-    l
+
 
         <div className="flex items-center gap-1.5 text-gray-400">
           <Users size={13} strokeWidth={3} />

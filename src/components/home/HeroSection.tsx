@@ -7,8 +7,8 @@ const archivoBlack = Archivo_Black({
 });
 export default function HeroSection({ compact = false }: { compact?: boolean }) {
   return (
-    <main className={`relative z-10 px-4 flex flex-col items-center justify-center w-full max-w-[1440px] mx-auto ${compact ? 'pt-12 pb-16 md:pt-16 md:pb-24' : 'flex-1 pt-28 pb-32 md:pt-36 md:pb-48'}`}>
-      <div className="relative w-full max-w-5xl mx-auto flex flex-col items-center justify-center text-center z-10 mt-4 mb-16">
+    <main className={`relative z-10 px-4 flex flex-col items-center justify-center w-full max-w-[1440px] mx-auto ${compact ? 'pt-12 pb-16 md:pt-16 md:pb-24' : 'flex-1 pt-28 pb-16 md:pt-36 md:pb-20'}`}>
+      <div className="relative w-full max-w-5xl mx-auto flex flex-col items-center justify-center text-center z-10 mt-4 mb-8">
         {/* Massive Typography */}
         <div className="w-full flex flex-col items-center relative z-10 space-y-2 md:space-y-4">
           <div className="w-full flex justify-start pl-[10%] md:pl-[20%] relative z-30">

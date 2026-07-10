@@ -3,8 +3,8 @@ import { ArrowBlack } from "@/components/ui/Accents";
 
 export default function FeaturesSection() {
   return (
-    <section className="bg-white text-black rounded-t-[2.5rem] md:rounded-t-[3.5rem] px-6 py-12 md:px-10 md:py-16 relative z-20 shadow-[0_-20px_50px_rgba(0,0,0,0.2)] mt-auto w-full">
-      <div className="max-w-6xl mx-auto">
+    <section className="bg-white text-black px-6 pb-12 pt-4 md:px-10 md:pb-24 md:pt-8 relative z-20 mt-auto w-full border-t border-gray-50">
+      <div className="max-w-[1440px] mx-auto">
         {/* CTA Row */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6">
           <div>
@@ -17,12 +17,6 @@ export default function FeaturesSection() {
               dalam hitungan detik.
             </h2>
           </div>
-          <Link
-            href="/twibbons"
-            className="w-full md:w-auto text-center shrink-0 px-8 py-4 rounded-full bg-[#0038FF] text-white font-black text-sm md:text-base hover:bg-blue-700 transition-colors shadow-lg"
-          >
-            Lihat Semua Twibbon →
-          </Link>
         </div>
 
         {/* Feature Cards */}

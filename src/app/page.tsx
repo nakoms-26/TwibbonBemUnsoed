@@ -1,7 +1,6 @@
-"use client";
-
 import HeroSection from "@/components/home/HeroSection";
 import FeaturesSection from "@/components/home/FeaturesSection";
+import LatestTwibbonsSection from "@/components/home/LatestTwibbonsSection";
 
 export default function Home() {
   return (
@@ -10,6 +9,8 @@ export default function Home() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff15_1px,transparent_1px),linear-gradient(to_bottom,#ffffff15_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none z-0" />
 
       <HeroSection />
+      
+      <LatestTwibbonsSection />
       
       <FeaturesSection />
     </div>
