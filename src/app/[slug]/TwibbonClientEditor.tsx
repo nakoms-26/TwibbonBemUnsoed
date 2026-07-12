@@ -1,17 +1,26 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { renderChromaKey } from "@/lib/webglChroma";
 
-// helper to load image for canvas
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new window.Image();
     image.addEventListener("load", () => resolve(image));
     image.addEventListener("error", (error) => reject(error));
-    image.setAttribute("crossOrigin", "anonymous");
-    image.src = url;
+    
+    if (url.startsWith("data:") || url.startsWith("blob:")) {
+      // Tidak perlu crossOrigin untuk data/blob URL
+      image.src = url;
+    } else {
+      // Wajib crossOrigin untuk menggambar ke canvas
+      image.setAttribute("crossOrigin", "anonymous");
+      // Cache buster untuk mencegah browser mengirim respons dari cache tanpa header CORS
+      const cacheBuster = url.includes("?") ? `&_cb=${Date.now()}` : `?_cb=${Date.now()}`;
+      image.src = url + cacheBuster;
+    }
   });
 
 export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
@@ -289,10 +298,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
                 className="w-full h-full object-contain bg-black"
               />
             ) : (
-              <img
+              <Image
                 src={resultUrl}
                 alt="Twibbon Result"
-                className="w-full h-full object-contain bg-white"
+                fill
+                unoptimized
+                className="object-contain bg-white"
               />
             )}
           </div>
@@ -348,10 +359,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
                       />
                     </>
                   ) : (
-                    <img
+                    <Image
                       src={twibbon.overlayFile}
                       alt="Overlay"
-                      className="object-contain opacity-100 absolute inset-0 w-full h-full"
+                      fill
+                      className="object-contain opacity-100"
                     />
                   )}
                 </div>
@@ -378,10 +390,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
                     }}
                   />
                 ) : (
-                  <img
+                  <Image
                     src={twibbon.overlayFile}
                     alt="Overlay Preview"
-                    className="object-contain z-10 absolute inset-0 w-full h-full"
+                    fill
+                    className="object-contain z-10"
                   />
                 )}
 

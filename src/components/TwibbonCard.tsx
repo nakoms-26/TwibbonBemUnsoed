@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { User, Users } from "lucide-react";
 
 type TwibbonCardProps = {
@@ -37,10 +38,12 @@ export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
         )}
 
         {twibbon.thumbnail ? (
-          <img
+          <Image
             src={twibbon.thumbnail}
             alt={twibbon.title}
-            className="object-cover w-full h-full"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover"
           />
         ) : (
           <div className="flex items-center justify-center h-full w-full text-5xl font-black text-gray-300">

@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import Link from "next/link";
+import Image from "next/image";
 import DeleteButton from "./DeleteButton";
 
 export default async function TwibbonsListPage() {
@@ -40,7 +41,7 @@ export default async function TwibbonsListPage() {
                   <div className="flex justify-between items-start mb-4">
                     <div className="relative h-16 w-16 bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200 shrink-0 mr-4">
                       {twibbon.thumbnail ? (
-                        <img src={twibbon.thumbnail} alt={twibbon.title} className="object-contain p-1 w-full h-full" />
+                        <Image src={twibbon.thumbnail} alt={twibbon.title} fill className="object-contain p-1" sizes="64px" />
                       ) : (
                         <div className="flex items-center justify-center h-full w-full text-gray-400 font-black text-xl">?</div>
                       )}
