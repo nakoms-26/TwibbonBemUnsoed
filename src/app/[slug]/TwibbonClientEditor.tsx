@@ -23,11 +23,11 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     }
   });
 
-export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
+export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<string, any> }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Record<string, number> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const isVideo = twibbon.type === "VIDEO";
@@ -123,7 +123,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      let imageDataUrl = await readFile(file);
+      const imageDataUrl = await readFile(file);
       setImageSrc(imageDataUrl);
       setResultUrl(null);
     }
@@ -142,7 +142,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
   };
 
   const onCropComplete = useCallback(
-    (croppedArea: any, croppedAreaPixels: any) => {
+    (croppedArea: unknown, croppedAreaPixels: Record<string, number>) => {
       setCroppedAreaPixels(croppedAreaPixels);
     },
     [],
@@ -208,6 +208,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
       canvas.height = overlayDims!.height;
 
       const userImg = await createImage(imageSrc!);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stream = (canvas as any).captureStream(30);
       let mimeType = "video/webm";
       if (MediaRecorder.isTypeSupported("video/mp4")) {
@@ -226,13 +227,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
         resolve();
       };
 
-      const wasLooping = video.loop;
       video.loop = false;
       video.currentTime = 0;
       await video.play();
       recorder.start();
 
-      let animationId: number;
       const renderFrame = () => {
         // Draw user img
         ctx.drawImage(
@@ -258,7 +257,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: any }) {
         }
 
         if (!video.ended && video.currentTime < video.duration) {
-          animationId = requestAnimationFrame(renderFrame);
+          requestAnimationFrame(renderFrame);
         } else {
           recorder.stop();
         }
