@@ -22,7 +22,11 @@ export default function DeleteButton({ id }: { id: string }) {
     <button
       onClick={handleDelete}
       disabled={isPending}
-      className="text-center bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-800 font-black uppercase tracking-widest text-xs px-3 py-3 rounded-xl transition-colors disabled:opacity-50"
+      className="text-center font-extrabold uppercase tracking-widest text-xs px-3 py-2.5 rounded-xl transition-all disabled:opacity-50"
+      style={{
+        background: "rgba(239, 68, 68, 0.12)",
+        color: "#dc2626",
+      }}
     >
       {isPending ? "MENGHAPUS..." : "HAPUS"}
     </button>

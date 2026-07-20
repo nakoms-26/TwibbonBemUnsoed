@@ -27,10 +27,8 @@ const FRAGMENT_SHADER = `
     float g = color.g * 255.0;
     float b = color.b * 255.0;
     
-    // Menggunakan formula yang lebih toleran terhadap kompresi MP4
-    // Karena MP4 selalu merusak warna murni (0,255,0), kita cek dominasi hijau terang.
-    // Kita perketat agar warna kuning atau hijau gelap (seperti daun pohon) tidak ikut hilang.
-    if (g > 150.0 && g > r * 1.8 && g > b * 1.8 && g - max(r, b) > 80.0) {
+    // Formula chroma keying transparan untuk warna hijau solid (green screen)
+    if (g > 80.0 && g > r * 1.15 && g > b * 1.15 && (g - max(r, b)) > 30.0) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else {
       gl_FragColor = color;
@@ -52,7 +50,7 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string) 
 }
 
 export function initWebGL(canvas: HTMLCanvasElement) {
-  const gl = canvas.getContext("webgl", { premultipliedAlpha: false });
+  const gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
   if (!gl) throw new Error("WebGL tidak didukung");
   glContext = gl;
 
@@ -102,7 +100,7 @@ export function initWebGL(canvas: HTMLCanvasElement) {
 }
 
 export function renderChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
-  if (!glContext || !shaderProgram) {
+  if (!glContext || !shaderProgram || glContext.canvas !== canvas) {
     initWebGL(canvas);
   }
   
@@ -131,7 +129,7 @@ export function renderChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasEleme
   gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
   gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
-  // Draw
+  // Clear background with transparent alpha (0.0)
   gl.clearColor(0.0, 0.0, 0.0, 0.0);
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLES, 0, 6);

@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import Link from "next/link";
+import { Image as ImageIcon, CheckCircle, Download } from "lucide-react";
 
 export default async function DashboardPage() {
   // Ambil statistik dari database
@@ -14,76 +15,165 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div>
-      <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-8 uppercase tracking-tighter">
+    <div className="space-y-10 pb-10">
+      <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight" style={{ color: "#2f2f67" }}>
         DASHBOARD
       </h1>
 
-      {/* Stats Grid */}
+      {/* Stats Grid (Original 3-card structure) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-white p-8 rounded-[2rem] border-2 border-gray-100 shadow-xl flex items-center space-x-6 relative overflow-hidden">
-          <div className="p-4 bg-[#0038FF] text-white rounded-2xl shadow-inner">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        {/* Card 1: Total Twibbon */}
+        <div
+          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          style={{
+            background: "rgba(255, 255, 255, 0.65)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(79, 77, 154, 0.12)",
+            boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
+          }}
+        >
+          <div className="p-4 rounded-2xl text-white shadow-sm" style={{ background: "#4f4d9a" }}>
+            <ImageIcon className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Total Twibbon</p>
-            <p className="text-4xl font-black text-gray-900">{totalTwibbons}</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a" }}>
+              Total Twibbon
+            </p>
+            <p className="text-4xl font-black" style={{ color: "#2f2f67" }}>
+              {totalTwibbons}
+            </p>
           </div>
         </div>
 
-        <div className="bg-[#CCFF00] p-8 rounded-[2rem] shadow-xl flex items-center space-x-6 relative overflow-hidden border-[3px] border-black/5">
-          <div className="p-4 bg-black text-[#CCFF00] rounded-2xl shadow-inner">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        {/* Card 2: Twibbon Aktif */}
+        <div
+          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          style={{
+            background: "rgba(255, 255, 255, 0.65)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(79, 77, 154, 0.12)",
+            boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
+          }}
+        >
+          <div className="p-4 rounded-2xl text-white shadow-sm" style={{ background: "#8ea8ea" }}>
+            <CheckCircle className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-black/60 mb-1">Twibbon Aktif</p>
-            <p className="text-4xl font-black text-black">{activeTwibbons}</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a" }}>
+              Twibbon Aktif
+            </p>
+            <p className="text-4xl font-black" style={{ color: "#2f2f67" }}>
+              {activeTwibbons}
+            </p>
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-[2rem] border-2 border-gray-100 shadow-xl flex items-center space-x-6 relative overflow-hidden">
-          <div className="p-4 bg-purple-100 text-purple-600 rounded-2xl shadow-inner">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        {/* Card 3: Total Download */}
+        <div
+          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          style={{
+            background: "rgba(255, 255, 255, 0.65)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(79, 77, 154, 0.12)",
+            boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
+          }}
+        >
+          <div className="p-4 rounded-2xl text-white shadow-sm" style={{ background: "#6b2f5a" }}>
+            <Download className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Total Download</p>
-            <p className="text-4xl font-black text-gray-900">{totalDownloads}</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a" }}>
+              Total Download
+            </p>
+            <p className="text-4xl font-black" style={{ color: "#2f2f67" }}>
+              {totalDownloads}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Recent Twibbons Table */}
-      <div className="bg-white rounded-[2rem] border-2 border-gray-100 shadow-xl overflow-hidden">
-        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">TWIBBON TERBARU</h2>
-          <Link href="/admin/twibbons" className="text-xs font-black px-4 py-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors uppercase tracking-wider">
-            Lihat Semua &rarr;
+      {/* Recent Twibbons Section (Original card grid layout) */}
+      <div
+        className="rounded-[2rem] overflow-hidden"
+        style={{
+          background: "rgba(255, 255, 255, 0.65)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          border: "1px solid rgba(79, 77, 154, 0.12)",
+          boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
+        }}
+      >
+        <div
+          className="px-8 py-6 flex justify-between items-center border-b"
+          style={{ borderColor: "rgba(79, 77, 154, 0.1)", background: "rgba(255, 255, 255, 0.4)" }}
+        >
+          <h2 className="text-2xl font-black uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+            TWIBBON TERBARU
+          </h2>
+          <Link
+            href="/admin/twibbons"
+            className="text-xs font-extrabold px-5 py-2.5 rounded-full transition-all uppercase tracking-wider text-white shadow-sm hover:scale-105"
+            style={{ background: "#4f4d9a" }}
+          >
+            Lihat Semua →
           </Link>
         </div>
-        <div className="p-6 md:p-8 bg-gray-50/20">
+
+        <div className="p-6 md:p-8">
           {recentTwibbons.length === 0 ? (
-            <div className="text-center py-10 text-gray-500 font-bold">
+            <div className="text-center py-10 font-bold" style={{ color: "#4f4d9a", opacity: 0.7 }}>
               Belum ada twibbon yang dibuat.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {recentTwibbons.map((twibbon) => (
-                <div key={twibbon.id} className="bg-white p-6 rounded-2xl border-2 border-gray-100 shadow-sm flex flex-col hover:border-blue-200 transition-colors">
+                <div
+                  key={twibbon.id}
+                  className="p-6 rounded-2xl border flex flex-col transition-all hover:shadow-sm"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.7)",
+                    borderColor: "rgba(79, 77, 154, 0.15)",
+                  }}
+                >
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex flex-col">
-                      <span className="text-lg font-black text-gray-900 uppercase leading-tight line-clamp-1">{twibbon.title}</span>
-                      <span className="text-xs font-bold text-gray-400">/{twibbon.slug}</span>
+                      <span className="text-lg font-black uppercase leading-tight line-clamp-1" style={{ color: "#2f2f67" }}>
+                        {twibbon.title}
+                      </span>
+                      <span className="text-xs font-bold opacity-75" style={{ color: "#4f4d9a" }}>
+                        /{twibbon.slug}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1.5 inline-flex text-[10px] uppercase tracking-widest font-black rounded-md shrink-0 ${twibbon.isActive ? 'bg-[#CCFF00] text-black' : 'bg-red-100 text-red-800'}`}>
-                      {twibbon.isActive ? 'Aktif' : 'Nonaktif'}
+                    <span
+                      className="px-3 py-1.5 inline-flex text-[10px] uppercase tracking-widest font-black rounded-lg shrink-0"
+                      style={
+                        twibbon.isActive
+                          ? { background: "rgba(34, 197, 94, 0.12)", color: "#16a34a" }
+                          : { background: "rgba(239, 68, 68, 0.12)", color: "#dc2626" }
+                      }
+                    >
+                      {twibbon.isActive ? "Aktif" : "Nonaktif"}
                     </span>
                   </div>
-                  <div className="mt-auto flex items-center justify-between border-t-2 border-gray-50 pt-4">
-                    <span className="text-[10px] font-black text-[#0038FF] bg-blue-50 px-2 py-1 rounded uppercase tracking-wider">
+                  <div
+                    className="mt-auto flex items-center justify-between border-t pt-4"
+                    style={{ borderColor: "rgba(79, 77, 154, 0.08)" }}
+                  >
+                    <span
+                      className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md"
+                      style={{ background: "rgba(79, 77, 154, 0.12)", color: "#4f4d9a" }}
+                    >
                       {twibbon.type}
                     </span>
-                    <span className="text-xs font-bold text-gray-400">
-                      {new Date(twibbon.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    <span className="text-xs font-bold opacity-70" style={{ color: "#2f2f67" }}>
+                      {new Date(twibbon.createdAt).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </span>
                   </div>
                 </div>

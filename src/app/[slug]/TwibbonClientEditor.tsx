@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { renderChromaKey } from "@/lib/webglChroma";
+import { Upload, RefreshCw, Copy, Download, CheckCircle } from "lucide-react";
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -11,16 +12,13 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     image.addEventListener("load", () => resolve(image));
     image.addEventListener("error", (error) => {
       console.error("Image load error event:", error);
-      reject(new Error(`Gagal memuat gambar. Pastikan server gambar mengizinkan CORS (Access-Control-Allow-Origin). URL: ${url}`));
+      reject(new Error(`Gagal memuat gambar. Pastikan server gambar mengizinkan CORS. URL: ${url}`));
     });
     
     if (url.startsWith("data:") || url.startsWith("blob:")) {
-      // Tidak perlu crossOrigin untuk data/blob URL
       image.src = url;
     } else {
-      // Wajib crossOrigin untuk menggambar ke canvas
       image.setAttribute("crossOrigin", "anonymous");
-      // Cache buster untuk mencegah browser mengirim respons dari cache tanpa header CORS
       const cacheBuster = url.includes("?") ? `&_cb=${Date.now()}` : `?_cb=${Date.now()}`;
       image.src = url + cacheBuster;
     }
@@ -35,18 +33,15 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const isVideo = twibbon.type === "VIDEO";
 
-  // Dynamic aspect ratio based on overlay
   const [overlayDims, setOverlayDims] = useState<{
     width: number;
     height: number;
   } | null>(null);
 
-  // Refs for video & chroma key preview
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Track container size so crop area EXACTLY fills the container
   const containerRef = useRef<HTMLDivElement>(null);
+
   const [containerSize, setContainerSize] = useState<{
     width: number;
     height: number;
@@ -54,7 +49,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load overlay dimensions
   useEffect(() => {
     const loadOverlay = async () => {
       if (!isVideo) {
@@ -73,7 +67,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     loadOverlay();
   }, [twibbon.overlayFile, isVideo]);
 
-  // Track container dimensions to force Cropper to fill it 100%
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
@@ -90,7 +83,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     return () => observer.disconnect();
   }, [resultUrl, imageSrc]);
 
-  // Live Chroma Key Preview for Video
   useEffect(() => {
     if (!isVideo || !videoRef.current || !previewCanvasRef.current) return;
 
@@ -115,9 +107,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
       animationId = requestAnimationFrame(renderFrame);
     };
 
-    video.play().catch(() => {
-      // Autoplay blocked handling
-    });
+    video.play().catch(() => {});
     renderFrame();
 
     return () => cancelAnimationFrame(animationId);
@@ -156,128 +146,61 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     setIsProcessing(true);
 
     try {
-      if (isVideo) {
-        await recordVideoTwibbon();
+      const userImg = await createImage(imageSrc);
+
+      if (!isVideo) {
+        const overlayImg = await createImage(twibbon.overlayFile);
+        const canvas = document.createElement("canvas");
+        canvas.width = overlayDims.width;
+        canvas.height = overlayDims.height;
+        const ctx = canvas.getContext("2d");
+
+        if (ctx) {
+          ctx.drawImage(
+            userImg,
+            croppedAreaPixels.x,
+            croppedAreaPixels.y,
+            croppedAreaPixels.width,
+            croppedAreaPixels.height,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          );
+          ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+          setResultUrl(canvas.toDataURL("image/png"));
+        }
       } else {
-        await renderStaticTwibbon();
+        const res = await fetch(twibbon.overlayFile);
+        const videoBlob = await res.blob();
+
+        const formData = new FormData();
+        formData.append("video", videoBlob, "overlay.mp4");
+        formData.append("userImage", userImg.src);
+        formData.append("cropX", croppedAreaPixels.x.toString());
+        formData.append("cropY", croppedAreaPixels.y.toString());
+        formData.append("cropW", croppedAreaPixels.width.toString());
+        formData.append("cropH", croppedAreaPixels.height.toString());
+
+        const uploadApiUrl = process.env.NEXT_PUBLIC_UPLOAD_API_URL || "https://apps.bem-unsoed.com/twibbon-backend/process.php";
+        const backendRes = await fetch(uploadApiUrl, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await backendRes.json();
+        if (data.status === "success") {
+          setResultUrl(data.url);
+        } else {
+          alert("Gagal memproses video: " + data.message);
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Gagal memproses. Pastikan format file didukung.");
+      alert("Terjadi kesalahan saat memproses twibbon: " + e.message);
+    } finally {
       setIsProcessing(false);
     }
-  };
-
-  const renderStaticTwibbon = async () => {
-    if (!croppedAreaPixels) return;
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("No 2d context");
-
-    canvas.width = overlayDims!.width;
-    canvas.height = overlayDims!.height;
-
-    const userImg = await createImage(imageSrc!);
-
-    ctx.drawImage(
-      userImg,
-      croppedAreaPixels.x,
-      croppedAreaPixels.y,
-      croppedAreaPixels.width,
-      croppedAreaPixels.height,
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    );
-
-    const overlayImg = await createImage(twibbon.overlayFile);
-    ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
-
-    const finalImage = canvas.toDataURL("image/png", 1.0);
-    setResultUrl(finalImage);
-    setIsProcessing(false);
-  };
-
-  const recordVideoTwibbon = async () => {
-    return new Promise<void>(async (resolve, reject) => {
-      if (!croppedAreaPixels) return reject("No cropped area");
-      const video = videoRef.current;
-      if (!video) return reject("No video element");
-
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return reject("No 2d context");
-
-      canvas.width = overlayDims!.width;
-      canvas.height = overlayDims!.height;
-
-      const userImg = await createImage(imageSrc!);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stream = (canvas as any).captureStream(30);
-      let mimeType = "video/webm";
-      if (MediaRecorder.isTypeSupported("video/mp4")) {
-        mimeType = "video/mp4";
-      }
-
-      const recorder = new MediaRecorder(stream, { mimeType });
-      const chunks: Blob[] = [];
-
-      recorder.ondataavailable = (e) => chunks.push(e.data);
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        setResultUrl(url);
-        setIsProcessing(false);
-        resolve();
-      };
-
-      video.loop = false;
-      video.currentTime = 0;
-      await video.play();
-      recorder.start();
-
-      const renderFrame = () => {
-        // Draw user img
-        ctx.drawImage(
-          userImg,
-          croppedAreaPixels.x,
-          croppedAreaPixels.y,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height,
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        );
-
-        // Draw video frame & chroma key via WebGL
-        if (previewCanvasRef.current) {
-          try {
-            renderChromaKey(video, previewCanvasRef.current);
-            ctx.drawImage(previewCanvasRef.current, 0, 0, canvas.width, canvas.height);
-          } catch (e) {
-            console.error("WebGL error during export", e);
-          }
-        }
-
-        if (!video.ended && video.currentTime < video.duration) {
-          requestAnimationFrame(renderFrame);
-        } else {
-          recorder.stop();
-        }
-      };
-
-      renderFrame();
-
-      // Fallback
-      setTimeout(
-        () => {
-          if (recorder.state === "recording") recorder.stop();
-        },
-        video.duration * 1000 + 1000,
-      );
-    });
   };
 
   const currentAspectRatio = overlayDims
@@ -285,13 +208,19 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     : 1;
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 md:gap-10 max-w-[1440px] mx-auto w-full px-4 md:px-10 py-2 md:py-10">
-      {/* Kiri: Editor / Preview */}
-      <div className="flex-1 w-full flex flex-col justify-center items-center">
+    <div className="flex flex-col md:flex-row items-center md:items-start justify-center gap-8 md:gap-12 max-w-6xl mx-auto">
+      {/* Kiri: Canvas / Preview Stage */}
+      <div className="w-full flex-1 flex flex-col items-center justify-center">
         {resultUrl ? (
           <div
-            className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden border-[6px] border-[#0038FF] shadow-[20px_20px_0px_#CCFF00]"
-            style={{ aspectRatio: currentAspectRatio }}
+            className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden shadow-xl"
+            style={{
+              aspectRatio: currentAspectRatio,
+              background: "rgba(255, 255, 255, 0.7)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(79, 77, 154, 0.15)",
+            }}
           >
             {isVideo ? (
               <video
@@ -304,19 +233,23 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             ) : (
               <Image
                 src={resultUrl}
-                alt="Twibbon Result"
+                alt="Hasil Twibbon"
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
                 unoptimized
-                className="object-contain bg-white"
+                className="object-contain"
               />
             )}
           </div>
         ) : (
           <div
             ref={containerRef}
-            className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden bg-gray-50 border-4 border-dashed border-gray-300 transition-all hover:border-[#0038FF]/50 shadow-xl"
-            style={{ aspectRatio: currentAspectRatio }}
+            className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden border-2 border-dashed transition-all shadow-xl"
+            style={{
+              aspectRatio: currentAspectRatio,
+              background: "rgba(255, 255, 255, 0.5)",
+              borderColor: "rgba(79, 77, 154, 0.25)",
+            }}
           >
             {imageSrc ? (
               <>
@@ -334,12 +267,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       restrictPosition={false}
                       style={{
                         cropAreaStyle: { border: 0, boxShadow: "none" },
-                        containerStyle: { backgroundColor: "black" },
+                        containerStyle: { backgroundColor: "#1e1b4b" },
                       }}
                     />
                   )}
                 </div>
-                {/* Overlay Preview on top of Cropper */}
                 <div className="absolute inset-0 pointer-events-none z-10">
                   {isVideo ? (
                     <>
@@ -375,11 +307,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 </div>
               </>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-gray-100">
-                {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxyZWN0IHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0iI2ZmZmZmZiIgLz4KPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZTVlNWU1IiAvPgo8cmVjdCB4PSIxMCIgeT0iMTAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgZmlsbD0iI2U1ZTVlNSIgLz4KPC9zdmc+')] bg-repeat"></div>
-
-                {/* Twibbon Overlay Preview */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
                 {isVideo ? (
                   <video
                     src={twibbon.overlayFile}
@@ -398,38 +326,36 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 ) : (
                   <Image
                     src={twibbon.overlayFile}
-                    alt="Overlay Preview"
+                    alt="Preview Overlay"
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-contain z-10"
                   />
                 )}
 
-                {/* Upload Prompt */}
                 <div 
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute inset-0 flex flex-col items-center justify-center z-20 cursor-pointer group"
                 >
-                  <div className="bg-white/90 backdrop-blur-md px-8 py-6 rounded-[2rem] shadow-xl text-center border-4 border-white transform transition-transform group-hover:scale-105">
-                    <div className="w-16 h-16 bg-[#0038FF] text-[#CCFF00] rounded-full flex items-center justify-center mx-auto mb-4 group-hover:-rotate-12 transition-transform">
-                      <svg
-                        className="w-8 h-8"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2.5"
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                        ></path>
-                      </svg>
+                  <div
+                    className="px-8 py-6 rounded-[2rem] shadow-xl text-center border transition-all group-hover:scale-105"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.85)",
+                      backdropFilter: "blur(16px)",
+                      WebkitBackdropFilter: "blur(16px)",
+                      borderColor: "rgba(79, 77, 154, 0.2)",
+                    }}
+                  >
+                    <div
+                      className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12"
+                      style={{ background: "#4f4d9a" }}
+                    >
+                      <Upload size={24} />
                     </div>
-                    <p className="font-black text-gray-900 text-lg uppercase tracking-widest group-hover:text-[#0038FF] transition-colors">
+                    <p className="font-extrabold text-base uppercase tracking-wider transition-colors" style={{ color: "#2f2f67" }}>
                       Pilih Foto
                     </p>
-                    <p className="text-xs text-gray-500 mt-1 font-bold">
+                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>
                       Klik area ini untuk mengunggah
                     </p>
                   </div>
@@ -441,11 +367,26 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
       </div>
 
       {/* Kanan: Controls */}
-      <div className="w-full md:w-96 flex flex-col space-y-6 md:space-y-8 bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border-2 border-gray-100 shadow-xl self-start h-full">
+      <div
+        className="w-full md:w-96 flex flex-col space-y-6 md:space-y-8 p-6 md:p-8 rounded-[2rem] border shadow-xl self-start h-full"
+        style={{
+          background: "rgba(255, 255, 255, 0.65)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderColor: "rgba(79, 77, 154, 0.12)",
+          boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
+        }}
+      >
         {twibbon.description && (
-          <div className="bg-gray-50 p-4 md:p-6 rounded-2xl border-2 border-gray-100">
+          <div
+            className="p-5 rounded-2xl border"
+            style={{
+              background: "rgba(79, 77, 154, 0.04)",
+              borderColor: "rgba(79, 77, 154, 0.12)",
+            }}
+          >
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">
+              <h3 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#4f4d9a" }}>
                 Caption
               </h3>
               <button
@@ -453,35 +394,24 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   navigator.clipboard.writeText(twibbon.description);
                   alert("Caption berhasil disalin!");
                 }}
-                className="text-[10px] flex items-center space-x-1 text-black hover:text-[#0038FF] font-black transition-colors bg-[#CCFF00] px-3 py-1.5 rounded-full uppercase tracking-wider"
+                className="text-[10px] flex items-center space-x-1 font-extrabold text-white transition-all px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm hover:scale-105"
+                style={{ background: "#4f4d9a" }}
               >
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="3"
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  ></path>
-                </svg>
+                <Copy size={12} />
                 <span>Salin</span>
               </button>
             </div>
-            <p className="text-sm font-bold text-gray-600 line-clamp-4 leading-relaxed">
+            <p className="text-xs font-semibold line-clamp-4 leading-relaxed" style={{ color: "#2f2f67", opacity: 0.9 }}>
               {twibbon.description}
             </p>
           </div>
         )}
 
         <div>
-          <h3 className="text-lg font-black uppercase tracking-tight text-gray-900 mb-2">
+          <h3 className="text-base font-extrabold uppercase tracking-tight mb-1" style={{ color: "#2f2f67" }}>
             1. Pilih Foto
           </h3>
-          <p className="text-xs font-bold text-gray-400 mb-4">
+          <p className="text-xs font-semibold mb-4" style={{ color: "#4f4d9a", opacity: 0.8 }}>
             Pilih foto terbaik Anda untuk digabungkan dengan bingkai ini.
           </p>
           <input
@@ -493,18 +423,24 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-4 px-4 bg-white border-2 border-gray-200 text-gray-900 font-black uppercase tracking-widest rounded-xl hover:border-[#0038FF] hover:text-[#0038FF] transition-all shadow-sm"
+            className="w-full py-3.5 px-4 font-extrabold uppercase tracking-wider text-xs rounded-xl transition-all shadow-sm flex items-center justify-center space-x-2 border"
+            style={{
+              background: "rgba(255, 255, 255, 0.8)",
+              borderColor: "rgba(79, 77, 154, 0.2)",
+              color: "#2f2f67",
+            }}
           >
-            {imageSrc ? "🔄 Ganti Foto Lain" : "📁 Pilih Foto"}
+            {imageSrc ? <RefreshCw size={14} /> : <Upload size={14} />}
+            <span>{imageSrc ? "Ganti Foto Lain" : "Pilih Foto"}</span>
           </button>
         </div>
 
         {imageSrc && !resultUrl && (
           <div>
-            <h3 className="text-lg font-black uppercase tracking-tight text-gray-900 mb-2">
+            <h3 className="text-base font-extrabold uppercase tracking-tight mb-1" style={{ color: "#2f2f67" }}>
               2. Sesuaikan Posisi
             </h3>
-            <p className="text-xs font-bold text-gray-400 mb-4">
+            <p className="text-xs font-semibold mb-4" style={{ color: "#4f4d9a", opacity: 0.8 }}>
               Geser foto atau perbesar dengan slider.
             </p>
             <input
@@ -514,26 +450,31 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               max={3}
               step={0.1}
               onChange={(e) => setZoom(Number(e.target.value))}
-              className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#CCFF00]"
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-[#4f4d9a]"
+              style={{ background: "rgba(79, 77, 154, 0.15)" }}
             />
           </div>
         )}
 
-        <div className="pt-8 border-t-2 border-gray-100">
+        <div className="pt-6 border-t" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
           {!resultUrl ? (
             <div>
-              <h3 className="text-lg font-black uppercase tracking-tight text-gray-900 mb-4">
+              <h3 className="text-base font-extrabold uppercase tracking-tight mb-4" style={{ color: "#2f2f67" }}>
                 3. Ekspor
               </h3>
               <button
                 onClick={generateTwibbon}
                 disabled={!imageSrc || isProcessing || !overlayDims}
-                className="w-full py-5 px-6 bg-[#CCFF00] text-black font-black uppercase tracking-widest rounded-full shadow-lg hover:scale-[1.02] border-b-4 border-yellow-500 active:border-b-0 active:translate-y-1 transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
+                style={{
+                  background: "#4f4d9a",
+                  boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                }}
               >
                 {isProcessing ? (
                   <>
                     <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-black"
+                      className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -552,18 +493,21 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
-                    Memproses...
+                    <span>Memproses...</span>
                   </>
                 ) : (
-                  "CROP & GABUNGKAN"
+                  <span>CROP & GABUNGKAN</span>
                 )}
               </button>
             </div>
           ) : (
             <div className="space-y-4">
-              <h3 className="text-lg font-black uppercase tracking-tight text-gray-900 mb-2">
-                🎉 Selesai!
-              </h3>
+              <div className="flex items-center space-x-2 mb-2">
+                <CheckCircle className="text-green-600" size={20} />
+                <h3 className="text-base font-extrabold uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+                  Selesai!
+                </h3>
+              </div>
               <a
                 href={resultUrl}
                 download={`twibbon-${twibbon.slug}.${isVideo ? "mp4" : "png"}`}
@@ -574,13 +518,23 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     body: JSON.stringify({ twibbonId: twibbon.id }),
                   }).catch(console.error);
                 }}
-                className="w-full py-5 px-6 bg-[#0038FF] text-white font-black uppercase tracking-widest rounded-full shadow-lg hover:scale-[1.02] transition-all flex justify-center items-center"
+                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
+                style={{
+                  background: "#4f4d9a",
+                  boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                }}
               >
-                Unduh Hasil
+                <Download size={16} />
+                <span>Unduh Hasil</span>
               </a>
               <button
                 onClick={() => setResultUrl(null)}
-                className="w-full py-4 px-4 bg-white border-2 border-gray-200 text-gray-800 rounded-full text-sm font-black uppercase tracking-wider hover:bg-gray-50 transition-all flex justify-center items-center"
+                className="w-full py-3.5 px-4 rounded-full text-xs font-extrabold uppercase tracking-wider transition-all border"
+                style={{
+                  background: "rgba(255, 255, 255, 0.8)",
+                  borderColor: "rgba(79, 77, 154, 0.2)",
+                  color: "#2f2f67",
+                }}
               >
                 Kembali Edit
               </button>

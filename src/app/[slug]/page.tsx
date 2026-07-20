@@ -1,6 +1,8 @@
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import TwibbonClientEditor from "./TwibbonClientEditor";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import { Metadata } from "next";
 
 type Props = {
@@ -23,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const baseUrl = "https://www.twibbon.bem-unsoed.com";
   const imageUrl = twibbon.thumbnail 
     ? (twibbon.thumbnail.startsWith('http') ? twibbon.thumbnail : `${baseUrl}${twibbon.thumbnail}`)
-    : `${baseUrl}/favicon.ico`;
+    : `${baseUrl}/logo.png`;
 
   const pageTitle = `${twibbon.title.toUpperCase()} - BEM Unsoed`;
   const pageDesc = twibbon.description || `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk pasang foto kamu.`;
@@ -82,27 +84,32 @@ export default async function PublicTwibbonPage({
   };
 
   return (
-    <div className="min-h-screen bg-[#0038FF] pt-32 md:pt-40 pb-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
-      {/* Background Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff15_1px,transparent_1px),linear-gradient(to_bottom,#ffffff15_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none z-0" />
-      
-      <div className="max-w-6xl mx-auto relative z-10">
-        <div className="text-center mb-6 md:mb-12 flex flex-col items-center">
-          <h1 
-            className="text-4xl md:text-6xl font-black text-[#CCFF00] mb-4 uppercase tracking-tighter"
-            style={{
-              fontFamily: '"Arial Black", Impact, sans-serif',
-              textShadow: "1px 1px 0 #001A99, 2px 2px 0 #001A99, 3px 3px 0 #001A99, 4px 4px 0 #001A99, 5px 5px 0 #001A99",
-            }}
-          >
-            {twibbon.title}
-          </h1>
-        </div>
+    <div
+      className="min-h-screen flex flex-col justify-between relative overflow-hidden font-sans"
+      style={{
+        background: "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #ddd8f8 100%)",
+      }}
+    >
+      <Navbar />
 
-        <div className="w-full">
-          <TwibbonClientEditor twibbon={serializedTwibbon} />
+      <main className="pt-28 md:pt-36 pb-12 px-4 sm:px-6 lg:px-8 relative z-10 flex-1">
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="text-center mb-6 md:mb-10 flex flex-col items-center">
+            <h1 
+              className="text-3xl md:text-5xl font-extrabold uppercase tracking-tight mb-2"
+              style={{ color: "#2f2f67" }}
+            >
+              {twibbon.title}
+            </h1>
+          </div>
+
+          <div className="w-full">
+            <TwibbonClientEditor twibbon={serializedTwibbon} />
+          </div>
         </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   );
 }

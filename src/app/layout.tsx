@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
-// Alias for heading to use Geist as well
-const geistHeading = Geist({
-  variable: "--font-heading",
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "TwibbonGen | Next-Gen Twibbon Maker",
-  description: "Buat dan dukung kampanye dengan Twibbon gambar dan video real-time. Platform SaaS Twibbon terbaik.",
+  title: "Twibbon BEM Unsoed - Platform Twibbon Resmi Kausa Cipta",
+  description: "Dukung dan semarakkan berbagai kegiatan BEM Unsoed dengan menggunakan bingkai foto (twibbon) dan video resmi.",
 };
 
 export default function RootLayout({
@@ -24,13 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={cn("h-full", "antialiased", geistHeading.variable, "font-sans", geist.variable)}>
-      <body className="min-h-full flex flex-col font-sans bg-background text-foreground selection:bg-indigo-500/30">
-        <Navbar />
-        <main className="flex-grow flex flex-col">
-          {children}
-        </main>
-        <Footer />
+    <html lang="id" className={plusJakartaSans.variable}>
+      <body className={`${plusJakartaSans.className} min-h-screen antialiased flex flex-col justify-between selection:bg-[#4f4d9a] selection:text-white`}>
+        {children}
       </body>
     </html>
   );
