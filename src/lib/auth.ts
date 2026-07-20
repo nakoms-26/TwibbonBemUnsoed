@@ -1,7 +1,5 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcrypt";
-import prisma from "./prisma";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -16,27 +14,22 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Missing username or password");
         }
 
-        const admin = await prisma.admin.findUnique({
-          where: {
-            username: credentials.username
-          }
-        });
+        const envUsername = process.env.ADMIN_USERNAME;
+        const envPassword = process.env.ADMIN_PASSWORD;
 
-        if (!admin) {
-          throw new Error("Admin not found");
+        if (!envUsername || !envPassword) {
+          throw new Error("Environment variables ADMIN_USERNAME and ADMIN_PASSWORD are not set.");
         }
 
-        const isPasswordValid = await bcrypt.compare(credentials.password, admin.password);
-
-        if (!isPasswordValid) {
-          throw new Error("Invalid password");
+        if (credentials.username === envUsername && credentials.password === envPassword) {
+          return {
+            id: "1",
+            name: "Admin",
+            username: envUsername,
+          };
         }
 
-        return {
-          id: admin.id.toString(),
-          name: admin.name,
-          username: admin.username,
-        };
+        throw new Error("Invalid username or password");
       }
     })
   ],
