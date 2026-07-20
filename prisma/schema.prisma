@@ -7,15 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Admin {
-  id        Int      @id @default(autoincrement())
-  name      String
-  username  String   @unique
-  password  String
-  createdAt DateTime @default(now())
 
-  @@map("admin")
-}
 
 model Twibbon {
   id          Int         @id @default(autoincrement())
