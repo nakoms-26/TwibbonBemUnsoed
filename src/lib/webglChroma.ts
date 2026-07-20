@@ -27,8 +27,8 @@ const FRAGMENT_SHADER = `
     float g = color.g * 255.0;
     float b = color.b * 255.0;
     
-    // Formula chroma keying transparan untuk warna hijau solid (green screen)
-    if (g > 80.0 && g > r * 1.15 && g > b * 1.15 && (g - max(r, b)) > 30.0) {
+    // Chroma keying khusus untuk warna hijau murni (RGB 0, 255, 0 / #00FF00)
+    if (g > 150.0 && r < 80.0 && b < 80.0) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else {
       gl_FragColor = color;

@@ -83,35 +83,34 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     return () => observer.disconnect();
   }, [resultUrl, imageSrc]);
 
+  // Live Chroma Key Preview for Video (Continuous Playback during crop)
   useEffect(() => {
-    if (!isVideo || !videoRef.current || !previewCanvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = previewCanvasRef.current;
+    if (!isVideo) return;
 
     let animationId: number;
 
     const renderFrame = () => {
-      if (video.paused || video.ended) {
-        animationId = requestAnimationFrame(renderFrame);
-        return;
-      }
+      const video = videoRef.current;
+      const canvas = previewCanvasRef.current;
 
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        try {
-          renderChromaKey(video, canvas);
-        } catch (e) {
-          console.error(e);
+      if (video && canvas) {
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          try {
+            renderChromaKey(video, canvas);
+          } catch (e) {
+            console.error("Chroma key render error:", e);
+          }
         }
       }
       animationId = requestAnimationFrame(renderFrame);
     };
 
-    video.play().catch(() => {});
-    renderFrame();
-
+    animationId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(animationId);
-  }, [isVideo, twibbon.overlayFile]);
+  }, [isVideo, twibbon.overlayFile, imageSrc]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -281,9 +280,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                         crossOrigin="anonymous"
                         muted
                         loop
+                        autoPlay
                         playsInline
-                        className="hidden"
+                        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
                         onLoadedMetadata={(e) => {
+                          e.currentTarget.play().catch(() => {});
                           setOverlayDims({
                             width: e.currentTarget.videoWidth,
                             height: e.currentTarget.videoHeight,
