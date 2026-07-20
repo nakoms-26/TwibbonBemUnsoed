@@ -9,7 +9,10 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new window.Image();
     image.addEventListener("load", () => resolve(image));
-    image.addEventListener("error", (error) => reject(error));
+    image.addEventListener("error", (error) => {
+      console.error("Image load error event:", error);
+      reject(new Error(`Gagal memuat gambar. Pastikan server gambar mengizinkan CORS (Access-Control-Allow-Origin). URL: ${url}`));
+    });
     
     if (url.startsWith("data:") || url.startsWith("blob:")) {
       // Tidak perlu crossOrigin untuk data/blob URL
@@ -301,6 +304,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 src={resultUrl}
                 alt="Twibbon Result"
                 fill
+                sizes="(max-width: 768px) 100vw, 50vw"
                 unoptimized
                 className="object-contain bg-white"
               />
@@ -362,6 +366,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       src={twibbon.overlayFile}
                       alt="Overlay"
                       fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
                       className="object-contain opacity-100"
                     />
                   )}
@@ -393,6 +398,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     src={twibbon.overlayFile}
                     alt="Overlay Preview"
                     fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-contain z-10"
                   />
                 )}
