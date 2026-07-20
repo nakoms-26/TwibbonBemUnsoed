@@ -169,6 +169,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   };
 
   const renderStaticTwibbon = async () => {
+    if (!croppedAreaPixels) return;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("No 2d context");
@@ -200,6 +201,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
   const recordVideoTwibbon = async () => {
     return new Promise<void>(async (resolve, reject) => {
+      if (!croppedAreaPixels) return reject("No cropped area");
       const video = videoRef.current;
       if (!video) return reject("No video element");
 
