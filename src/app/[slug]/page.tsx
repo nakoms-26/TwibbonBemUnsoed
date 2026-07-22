@@ -5,6 +5,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Metadata } from "next";
 
+export const revalidate = 0;
+
 type Props = {
   params: Promise<{ slug: string }>;
 };
@@ -23,8 +25,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const baseUrl = "https://www.twibbon.bem-unsoed.com";
+  const timestamp = twibbon.updatedAt ? `?t=${new Date(twibbon.updatedAt).getTime()}` : "";
   const imageUrl = twibbon.thumbnail 
-    ? (twibbon.thumbnail.startsWith('http') ? twibbon.thumbnail : `${baseUrl}${twibbon.thumbnail}`)
+    ? (twibbon.thumbnail.startsWith('http') ? `${twibbon.thumbnail}${timestamp}` : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
     : `${baseUrl}/logo.png`;
 
   const pageTitle = `${twibbon.title.toUpperCase()} - BEM Unsoed`;

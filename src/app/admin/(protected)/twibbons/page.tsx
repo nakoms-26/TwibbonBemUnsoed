@@ -72,7 +72,7 @@ export default async function TwibbonsListPage() {
                       style={{ background: "rgba(79, 77, 154, 0.06)", borderColor: "rgba(79, 77, 154, 0.15)" }}
                     >
                       {twibbon.thumbnail ? (
-                        <Image src={twibbon.thumbnail} alt={twibbon.title} fill className="object-contain p-1" sizes="64px" />
+                        <Image src={twibbon.updatedAt ? `${twibbon.thumbnail}?t=${new Date(twibbon.updatedAt).getTime()}` : twibbon.thumbnail} alt={twibbon.title} fill className="object-contain p-1" sizes="64px" unoptimized />
                       ) : (
                         <div className="flex items-center justify-center h-full w-full font-black text-xl" style={{ color: "#4f4d9a" }}>?</div>
                       )}

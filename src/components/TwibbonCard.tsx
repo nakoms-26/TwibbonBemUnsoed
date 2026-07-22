@@ -10,6 +10,7 @@ type TwibbonCardProps = {
     description: string | null;
     type: string;
     thumbnail: string | null;
+    updatedAt?: Date | string;
     _count?: {
       downloads: number;
     };
@@ -23,6 +24,7 @@ const formatCount = (count: number) => {
 };
 
 export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
+  const timestamp = twibbon.updatedAt ? `?t=${new Date(twibbon.updatedAt).getTime()}` : "";
   return (
     <Link
       href={`/${twibbon.slug}`}
@@ -39,11 +41,12 @@ export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
 
         {twibbon.thumbnail ? (
           <Image
-            src={twibbon.thumbnail}
+            src={`${twibbon.thumbnail}${timestamp}`}
             alt={twibbon.title}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover"
+            unoptimized
           />
         ) : (
           <div className="flex items-center justify-center h-full w-full text-5xl font-black text-gray-300">

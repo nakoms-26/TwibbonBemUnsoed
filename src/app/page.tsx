@@ -4,6 +4,8 @@ import LatestTwibbonsSection from "@/components/home/LatestTwibbonsSection";
 import FeaturesSection from "@/components/home/FeaturesSection";
 import Footer from "@/components/Footer";
 
+export const revalidate = 0;
+
 export default function Home() {
   return (
     <div

@@ -99,6 +99,8 @@ export async function createTwibbon(formData: FormData) {
 
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");
+  revalidatePath("/");
+  revalidatePath("/twibbons");
   redirect("/admin/twibbons");
 }
 
@@ -163,6 +165,8 @@ export async function updateTwibbon(formData: FormData) {
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");
   revalidatePath(`/${slug}`);
+  revalidatePath("/");
+  revalidatePath("/twibbons");
   redirect("/admin/twibbons");
 }
 
@@ -178,4 +182,6 @@ export async function deleteTwibbon(id: string) {
 
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");
+  revalidatePath("/");
+  revalidatePath("/twibbons");
 }
