@@ -62,6 +62,21 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           console.error("Gagal memuat overlay", e);
           setOverlayDims({ width: 1080, height: 1080 });
         }
+      } else {
+        // For video: load video metadata to get dimensions
+        const vid = document.createElement("video");
+        vid.crossOrigin = "anonymous";
+        vid.src = twibbon.overlayFile;
+        vid.onloadedmetadata = () => {
+          setOverlayDims({
+            width: vid.videoWidth || 1080,
+            height: vid.videoHeight || 1080,
+          });
+        };
+        vid.onerror = () => {
+          setOverlayDims({ width: 1080, height: 1080 });
+        };
+        vid.load();
       }
     };
     loadOverlay();
@@ -170,29 +185,113 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           setResultUrl(canvas.toDataURL("image/png"));
         }
       } else {
-        const res = await fetch(twibbon.overlayFile);
-        const videoBlob = await res.blob();
+        // Browser-side video processing using MediaRecorder
+        const canvasWidth = overlayDims.width;
+        const canvasHeight = overlayDims.height;
 
-        const formData = new FormData();
-        formData.append("video", videoBlob, "overlay.mp4");
-        formData.append("userImage", userImg.src);
-        formData.append("cropX", croppedAreaPixels.x.toString());
-        formData.append("cropY", croppedAreaPixels.y.toString());
-        formData.append("cropW", croppedAreaPixels.width.toString());
-        formData.append("cropH", croppedAreaPixels.height.toString());
+        // Create offscreen canvas for compositing
+        const outputCanvas = document.createElement("canvas");
+        outputCanvas.width = canvasWidth;
+        outputCanvas.height = canvasHeight;
+        const ctx = outputCanvas.getContext("2d");
+        if (!ctx) throw new Error("Tidak dapat membuat canvas context");
 
-        const uploadApiUrl = process.env.NEXT_PUBLIC_UPLOAD_API_URL || "https://apps.bem-unsoed.com/twibbon-backend/process.php";
-        const backendRes = await fetch(uploadApiUrl, {
-          method: "POST",
-          body: formData,
+        // Create user photo canvas (cropped)
+        const userCanvas = document.createElement("canvas");
+        userCanvas.width = canvasWidth;
+        userCanvas.height = canvasHeight;
+        const userCtx = userCanvas.getContext("2d");
+        if (!userCtx) throw new Error("Tidak dapat membuat user canvas context");
+        userCtx.drawImage(
+          userImg,
+          croppedAreaPixels.x,
+          croppedAreaPixels.y,
+          croppedAreaPixels.width,
+          croppedAreaPixels.height,
+          0, 0,
+          canvasWidth,
+          canvasHeight,
+        );
+
+        // Create overlay video element
+        const overlayVideo = document.createElement("video");
+        overlayVideo.crossOrigin = "anonymous";
+        overlayVideo.src = twibbon.overlayFile;
+        overlayVideo.muted = true;
+        overlayVideo.loop = false;
+        overlayVideo.playsInline = true;
+
+        await new Promise<void>((resolve, reject) => {
+          overlayVideo.oncanplaythrough = () => resolve();
+          overlayVideo.onerror = () => reject(new Error("Gagal memuat video overlay"));
+          overlayVideo.load();
         });
 
-        const data = await backendRes.json();
-        if (data.status === "success") {
-          setResultUrl(data.url);
-        } else {
-          alert("Gagal memproses video: " + data.message);
-        }
+        const videoDuration = overlayVideo.duration;
+
+        // Start MediaRecorder
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+          ? "video/webm;codecs=vp9"
+          : MediaRecorder.isTypeSupported("video/webm")
+          ? "video/webm"
+          : "video/mp4";
+
+        const stream = outputCanvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
+        const chunks: BlobPart[] = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+        const recordingDone = new Promise<string>((resolve) => {
+          recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: mimeType });
+            resolve(URL.createObjectURL(blob));
+          };
+        });
+
+        recorder.start();
+        overlayVideo.currentTime = 0;
+        await overlayVideo.play();
+
+        // Dedicated offscreen 2D canvas for software chroma key processing
+        const chromaCanvas = document.createElement("canvas");
+        chromaCanvas.width = canvasWidth;
+        chromaCanvas.height = canvasHeight;
+        const chromaCtx = chromaCanvas.getContext("2d", { willReadFrequently: true });
+        if (!chromaCtx) throw new Error("Tidak dapat membuat chroma canvas context");
+
+        // Render frames: user photo base + chroma-keyed overlay on top
+        await new Promise<void>((resolve) => {
+          const drawFrame = () => {
+            if (overlayVideo.ended) {
+              resolve();
+              return;
+            }
+            if (overlayVideo.videoWidth > 0) {
+              // Draw video frame to chroma canvas
+              chromaCtx.drawImage(overlayVideo, 0, 0, canvasWidth, canvasHeight);
+              // Software chroma key: remove pure green pixels
+              const imageData = chromaCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+              const data = imageData.data;
+              for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i + 1], b = data[i + 2];
+                if (g > 150 && r < 80 && b < 80) {
+                  data[i + 3] = 0; // Transparent
+                }
+              }
+              chromaCtx.putImageData(imageData, 0, 0);
+            }
+            // Composite: user photo base + chroma-keyed overlay
+            ctx.drawImage(userCanvas, 0, 0);
+            ctx.drawImage(chromaCanvas, 0, 0, canvasWidth, canvasHeight);
+            requestAnimationFrame(drawFrame);
+          };
+          overlayVideo.onended = () => resolve();
+          requestAnimationFrame(drawFrame);
+        });
+
+        recorder.stop();
+        const blobUrl = await recordingDone;
+        setResultUrl(blobUrl);
       }
     } catch (e: any) {
       console.error(e);
