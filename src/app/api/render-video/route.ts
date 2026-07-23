@@ -49,6 +49,7 @@ async function resolveOverlayFile(
 }
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Set maximum execution time to 60 seconds on Vercel
 
 /**
  * POST /api/render-video

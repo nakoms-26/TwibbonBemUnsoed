@@ -4,6 +4,8 @@ import { unlink, stat } from "fs/promises";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
+import ffmpegStatic from "ffmpeg-static";
+import ffprobeStatic from "ffprobe-static";
 
 const TEMP_DIR = path.join(os.tmpdir(), "twibbon-renders");
 
@@ -44,6 +46,15 @@ export function findExecutablePath(name: "ffmpeg" | "ffprobe"): string {
   const envVar = name === "ffmpeg" ? process.env.FFMPEG_PATH : process.env.FFPROBE_PATH;
   if (envVar && existsSync(envVar)) {
     return envVar;
+  }
+
+  // Check npm static packages (works on Vercel serverless / Linux / cross-platform)
+  const staticPath = name === "ffmpeg"
+    ? (typeof ffmpegStatic === "string" ? ffmpegStatic : null)
+    : (ffprobeStatic && typeof ffprobeStatic.path === "string" ? ffprobeStatic.path : null);
+
+  if (staticPath && existsSync(staticPath)) {
+    return staticPath;
   }
 
   const exeName = process.platform === "win32" ? `${name}.exe` : name;
