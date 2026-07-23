@@ -339,6 +339,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const originalPaused = videoElement.paused;
         videoElement.pause();
 
+        // 2D canvas chroma key untuk encoding (lebih kompatibel dari WebGL di iOS)
+        // WebGL tetap dipakai untuk live preview real-time di atas
+        const chromaCtx = chromaCanvas.getContext('2d');
+        if (!chromaCtx) throw new Error('Tidak dapat membuat 2D context untuk chroma key');
+
         for (let i = 0; i < totalFrames; i++) {
           // Progress video: 2-80% (sisakan 80-95% untuk audio)
           setRenderProgress(2 + Math.floor((i / totalFrames) * 78));
@@ -347,8 +352,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           // 1. Seek overlay video to exact frame
           await seekVideo(i / fps);
 
-          // 2. Process chroma key
-          renderChromaKey(videoElement, chromaCanvas);
+          // 2. Process chroma key via 2D canvas (WebGL tidak dipakai di sini untuk kompatibilitas iOS)
+          chromaCtx.clearRect(0, 0, encodeWidth, encodeHeight);
+          chromaCtx.drawImage(videoElement, 0, 0, encodeWidth, encodeHeight);
+          const imageData = chromaCtx.getImageData(0, 0, encodeWidth, encodeHeight);
+          const d = imageData.data;
+          for (let p = 0; p < d.length; p += 4) {
+            // Chroma key: hijau murni (g > 150, r < 80, b < 80) → transparan
+            if (d[p + 1] > 150 && d[p] < 80 && d[p + 2] < 80) d[p + 3] = 0;
+          }
+          chromaCtx.putImageData(imageData, 0, 0);
 
           // 3. Clear and draw user photo
           compCtx.clearRect(0, 0, encodeWidth, encodeHeight);
