@@ -80,6 +80,7 @@ export default async function PublicTwibbonPage({
   const serializedTwibbon = {
     id: twibbon.id,
     title: twibbon.title,
+    slug: twibbon.slug,
     description: twibbon.description,
     type: twibbon.type,
     overlayFile: twibbon.overlayFile,

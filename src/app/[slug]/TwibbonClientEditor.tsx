@@ -653,9 +653,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               </div>
               <a
                 href={resultUrl}
-                download={`twibbon-${twibbon.slug}.${isVideo ? "mp4" : "png"}`}
-                target={isVideo ? "_blank" : undefined}
-                rel={isVideo ? "noopener noreferrer" : undefined}
+                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? "mp4" : "png"}`}
                 onClick={() => {
                   fetch("/api/downloads", {
                     method: "POST",

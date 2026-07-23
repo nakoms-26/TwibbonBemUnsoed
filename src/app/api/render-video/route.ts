@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { writeFile, copyFile, access } from "fs/promises";
+import { writeFile, copyFile, access, readFile, unlink } from "fs/promises";
 import path from "path";
 import {
   createRenderSession,
@@ -210,15 +210,21 @@ export async function POST(request: NextRequest) {
           message: "Menyelesaikan...",
         });
 
-        // Clean up input files (keep output)
+        // Read output video into base64 data URL
+        const videoBuffer = await readFile(session.outputPath);
+        const base64Video = videoBuffer.toString("base64");
+        const videoDataUrl = `data:video/mp4;base64,${base64Video}`;
+
+        // Clean up input and output temp files
         await cleanupSession(session);
+        await unlink(session.outputPath).catch(() => {});
 
         // === Done ===
         sendEvent({
           progress: 100,
           stage: "done",
           message: "Selesai!",
-          videoUrl: `/api/render-video/result/${session.id}`,
+          videoUrl: videoDataUrl,
         });
       } catch (err: unknown) {
         const errorMessage =
