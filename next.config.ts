@@ -4,7 +4,6 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/**/*': [
       './node_modules/ffmpeg-static/**/*',
-      './node_modules/ffprobe-static/**/*',
     ],
   },
   experimental: {

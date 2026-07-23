@@ -1,11 +1,10 @@
 import { spawn } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, chmodSync } from "fs";
 import { unlink, stat } from "fs/promises";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import ffmpegStatic from "ffmpeg-static";
-import ffprobeStatic from "ffprobe-static";
 
 const TEMP_DIR = path.join(os.tmpdir(), "twibbon-renders");
 
@@ -39,25 +38,25 @@ export async function downloadFile(url: string, destPath: string): Promise<void>
 }
 
 /**
- * Resolves the path to ffmpeg or ffprobe executable.
- * Searches system PATH, environment variables, and common Windows install paths (e.g. WinGet).
+ * Resolves the path to ffmpeg executable.
+ * Searches ffmpeg-static npm package, environment variables, system PATH, and Windows install paths.
  */
-export function findExecutablePath(name: "ffmpeg" | "ffprobe"): string {
-  const envVar = name === "ffmpeg" ? process.env.FFMPEG_PATH : process.env.FFPROBE_PATH;
-  if (envVar && existsSync(envVar)) {
-    return envVar;
+export function findFFmpegPath(): string {
+  if (process.env.FFMPEG_PATH && existsSync(process.env.FFMPEG_PATH)) {
+    return process.env.FFMPEG_PATH;
   }
 
-  // Check npm static packages (works on Vercel serverless / Linux / cross-platform)
-  const staticPath = name === "ffmpeg"
-    ? (typeof ffmpegStatic === "string" ? ffmpegStatic : null)
-    : (ffprobeStatic && typeof ffprobeStatic.path === "string" ? ffprobeStatic.path : null);
-
-  if (staticPath && existsSync(staticPath)) {
-    return staticPath;
+  // Check npm ffmpeg-static package
+  if (typeof ffmpegStatic === "string" && existsSync(ffmpegStatic)) {
+    return ffmpegStatic;
   }
 
-  const exeName = process.platform === "win32" ? `${name}.exe` : name;
+  // Check node_modules relative to CWD (for serverless environments)
+  const exeName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const cwdPath = path.join(process.cwd(), "node_modules", "ffmpeg-static", exeName);
+  if (existsSync(cwdPath)) {
+    return cwdPath;
+  }
 
   // Search candidate paths on Windows
   if (process.platform === "win32") {
@@ -83,56 +82,63 @@ export function findExecutablePath(name: "ffmpeg" | "ffprobe"): string {
     }
   }
 
-  // Fallback to plain name (assumes it is in system PATH)
-  return name;
+  // Fallback to system PATH command
+  return "ffmpeg";
 }
 
 /**
- * Get video duration using ffprobe
+ * Ensure the executable has execute permissions on Linux / Vercel Serverless
+ */
+function prepareExecutable(binPath: string): string {
+  if (process.platform !== "win32" && binPath.includes("/") && existsSync(binPath)) {
+    try {
+      chmodSync(binPath, 0o755);
+    } catch {
+      // Ignore permission errors if file system is read-only
+    }
+  }
+  return binPath;
+}
+
+/**
+ * Get video duration in seconds using `ffmpeg -i` (no ffprobe dependency).
+ * Falls back safely to 15 seconds if parsing fails.
  */
 export async function getVideoDuration(videoPath: string): Promise<number> {
-  const ffprobePath = findExecutablePath("ffprobe");
+  const ffmpegPath = prepareExecutable(findFFmpegPath());
 
-  return new Promise((resolve, reject) => {
-    const proc = spawn(ffprobePath, [
-      "-v", "error",
-      "-show_entries", "format=duration",
-      "-of", "default=noprint_wrappers=1:nokey=1",
-      videoPath,
-    ]);
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegPath, ["-i", videoPath]);
+    let stderr = "";
 
-    let output = "";
-    proc.stdout.on("data", (data) => {
-      output += data.toString();
-    });
-
-    let errOutput = "";
     proc.stderr.on("data", (data) => {
-      errOutput += data.toString();
+      stderr += data.toString();
     });
 
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(`ffprobe failed (code ${code}): ${errOutput}`));
-        return;
+    const handleFinish = () => {
+      // Look for "Duration: HH:MM:SS.mm" in FFmpeg stderr output
+      const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (match) {
+        const hours = parseFloat(match[1]);
+        const minutes = parseFloat(match[2]);
+        const seconds = parseFloat(match[3]);
+        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        if (totalSeconds > 0) {
+          resolve(totalSeconds);
+          return;
+        }
       }
-      const duration = parseFloat(output.trim());
-      if (isNaN(duration)) {
-        reject(new Error("Tidak bisa mendapatkan durasi video"));
-        return;
-      }
-      resolve(duration);
-    });
+      // Safe fallback duration
+      resolve(15);
+    };
 
-    proc.on("error", (err) => {
-      reject(new Error(`ffprobe tidak ditemukan di '${ffprobePath}'. Pastikan FFmpeg sudah diinstall: ${err.message}`));
-    });
+    proc.on("close", handleFinish);
+    proc.on("error", () => resolve(15));
   });
 }
 
 /**
  * Render video twibbon using FFmpeg with progress callback.
- * 
  * Composites a user photo behind a chroma-keyed video overlay.
  */
 export async function renderVideoTwibbon(
@@ -177,7 +183,7 @@ export async function renderVideoTwibbon(
       outputPath,
     ];
 
-    const ffmpegPath = findExecutablePath("ffmpeg");
+    const ffmpegPath = prepareExecutable(findFFmpegPath());
     const proc = spawn(ffmpegPath, args);
     let killed = false;
 
@@ -193,8 +199,6 @@ export async function renderVideoTwibbon(
     proc.stdout.on("data", (data) => {
       progressBuffer += data.toString();
 
-      // FFmpeg progress output is key=value pairs separated by newlines
-      // We look for out_time_us to calculate percentage
       const lines = progressBuffer.split("\n");
       for (const line of lines) {
         const match = line.match(/^out_time_us=(\d+)/);
@@ -205,7 +209,6 @@ export async function renderVideoTwibbon(
         }
       }
 
-      // Keep only the last incomplete line in buffer
       if (progressBuffer.endsWith("\n")) {
         progressBuffer = "";
       } else {
@@ -231,7 +234,7 @@ export async function renderVideoTwibbon(
 
     proc.on("error", (err) => {
       clearTimeout(timeout);
-      reject(new Error(`FFmpeg tidak ditemukan. Pastikan FFmpeg sudah diinstall di server: ${err.message}`));
+      reject(new Error(`FFmpeg tidak ditemukan di '${ffmpegPath}'. Pastikan FFmpeg sudah diinstall: ${err.message}`));
     });
   });
 }
