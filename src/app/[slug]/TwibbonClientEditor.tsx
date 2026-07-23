@@ -241,22 +241,25 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
         // Canvas for compositing
         const compCanvas = document.createElement("canvas");
-        compCanvas.width = overlayDims.width;
-        compCanvas.height = overlayDims.height;
+        // H.264 membutuhkan dimensi kelipatan 2
+        const encodeWidth = Math.ceil(overlayDims.width / 2) * 2;
+        const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
+        compCanvas.width = encodeWidth;
+        compCanvas.height = encodeHeight;
         const compCtx = compCanvas.getContext("2d");
         if (!compCtx) throw new Error("Tidak dapat membuat canvas context");
 
         // Temporary canvas for chroma key
         const chromaCanvas = document.createElement("canvas");
-        chromaCanvas.width = overlayDims.width;
-        chromaCanvas.height = overlayDims.height;
+        chromaCanvas.width = encodeWidth;
+        chromaCanvas.height = encodeHeight;
 
         const muxer = new Muxer({
           target: new ArrayBufferTarget(),
           video: {
             codec: 'avc',
-            width: overlayDims.width,
-            height: overlayDims.height,
+            width: encodeWidth,
+            height: encodeHeight,
           },
           // Tambahkan audio track jika overlay memiliki audio
           ...(hasAudio && audioBuffer && {
@@ -269,21 +272,34 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           fastStart: 'in-memory',
         });
 
+        // Track error dari encoder secara eksplisit (throw di callback tidak propagate)
+        let encoderError: Error | null = null;
         const encoder = new window.VideoEncoder({
           output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
           error: (e) => {
             console.error("VideoEncoder error:", e);
-            throw new Error("Gagal meng-encode video.");
+            encoderError = e instanceof Error ? e : new Error(String(e));
           },
         });
 
-        encoder.configure({
-          codec: 'avc1.42001f', // H.264 Baseline
-          width: overlayDims.width,
-          height: overlayDims.height,
+        const encoderConfig = {
+          codec: 'avc1.42001f' as const, // H.264 Baseline
+          width: encodeWidth,
+          height: encodeHeight,
           bitrate: 2_500_000, // 2.5 Mbps
           framerate: fps,
-        });
+        };
+
+        // Validasi dukungan codec sebelum configure
+        if ('isConfigSupported' in window.VideoEncoder) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const support = await (window.VideoEncoder as any).isConfigSupported(encoderConfig);
+          if (!support.supported) {
+            throw new Error('Konfigurasi codec video tidak didukung di browser ini. Coba gunakan Chrome terbaru.');
+          }
+        }
+
+        encoder.configure(encoderConfig);
 
         const seekVideo = (time: number) => {
           return new Promise<void>((resolve) => {
@@ -311,7 +327,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           renderChromaKey(videoElement, chromaCanvas);
 
           // 3. Clear and draw user photo
-          compCtx.clearRect(0, 0, overlayDims.width, overlayDims.height);
+          compCtx.clearRect(0, 0, encodeWidth, encodeHeight);
           compCtx.drawImage(
             userImg,
             croppedAreaPixels.x,
@@ -319,14 +335,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             croppedAreaPixels.width,
             croppedAreaPixels.height,
             0, 0,
-            overlayDims.width,
-            overlayDims.height
+            encodeWidth,
+            encodeHeight
           );
 
           // 4. Draw processed chroma key overlay on top
-          compCtx.drawImage(chromaCanvas, 0, 0, overlayDims.width, overlayDims.height);
+          compCtx.drawImage(chromaCanvas, 0, 0, encodeWidth, encodeHeight);
 
           // 5. Create VideoFrame and encode
+          // Periksa error encoder sebelum membuat frame baru
+          if (encoderError) throw encoderError;
           const frame = new window.VideoFrame(compCanvas, {
             timestamp: (i * 1000000) / fps,
           });
@@ -346,11 +364,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           }
 
           // GC: Bersihkan pixel buffer canvas setelah di-encode
-          compCtx.clearRect(0, 0, overlayDims.width, overlayDims.height);
+          compCtx.clearRect(0, 0, encodeWidth, encodeHeight);
 
           // GC: Drain encoder queue setiap ~1 detik untuk cegah penumpukan memori
           if (i > 0 && i % fps === 0) {
             await encoder.flush();
+            if (encoderError) throw encoderError;
           }
 
           // Yield ke main thread untuk update UI & siklus GC
