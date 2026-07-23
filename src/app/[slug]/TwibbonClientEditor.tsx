@@ -282,21 +282,44 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           },
         });
 
-        const encoderConfig = {
-          codec: 'avc1.42001f' as const, // H.264 Baseline
-          width: encodeWidth,
-          height: encodeHeight,
-          bitrate: 2_500_000, // 2.5 Mbps
-          framerate: fps,
-        };
+        // Codec fallback cascade: coba dari yang paling kompatibel
+        // framerate tidak disertakan agar lebih kompatibel di iOS Safari
+        const codecCandidates = [
+          'avc1.42E01E', // H.264 Baseline Level 3.0 — kompatibilitas terluas
+          'avc1.4D001E', // H.264 Main Level 3.0
+          'avc1.640028', // H.264 High Level 4.0
+          'avc1.42001f', // H.264 Baseline Level 3.1 (original)
+        ];
 
-        // Validasi dukungan codec sebelum configure
-        if ('isConfigSupported' in window.VideoEncoder) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const support = await (window.VideoEncoder as any).isConfigSupported(encoderConfig);
-          if (!support.supported) {
-            throw new Error('Konfigurasi codec video tidak didukung di browser ini. Coba gunakan Chrome terbaru.');
+        let encoderConfig: VideoEncoderConfig | null = null;
+
+        for (const codec of codecCandidates) {
+          const candidate: VideoEncoderConfig = {
+            codec,
+            width: encodeWidth,
+            height: encodeHeight,
+            bitrate: 2_000_000, // 2 Mbps
+          };
+
+          if ('isConfigSupported' in window.VideoEncoder) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const support = await (window.VideoEncoder as any).isConfigSupported(candidate);
+            if (support.supported) {
+              encoderConfig = candidate;
+              break;
+            }
+          } else {
+            // Browser tidak support isConfigSupported, langsung pakai kandidat pertama
+            encoderConfig = candidate;
+            break;
           }
+        }
+
+        if (!encoderConfig) {
+          throw new Error(
+            'Browser Anda tidak mendukung encoding video (WebCodecs). ' +
+            'Silakan gunakan Chrome atau Safari versi terbaru.'
+          );
         }
 
         encoder.configure(encoderConfig);
