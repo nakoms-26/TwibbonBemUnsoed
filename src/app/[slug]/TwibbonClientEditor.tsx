@@ -5,6 +5,7 @@ import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { renderChromaKey } from "@/lib/webglChroma";
 import { Upload, RefreshCw, Copy, Download, CheckCircle } from "lucide-react";
+import { Muxer, ArrayBufferTarget } from "mp4-muxer";
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -190,103 +191,244 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           setResultUrl(canvas.toDataURL("image/png"));
         }
       } else {
-        // Server-side video rendering via FFmpeg
-        // Step 1: Create cropped image as base64
-        const cropCanvas = document.createElement("canvas");
-        cropCanvas.width = overlayDims.width;
-        cropCanvas.height = overlayDims.height;
-        const cropCtx = cropCanvas.getContext("2d");
-        if (!cropCtx) throw new Error("Tidak dapat membuat canvas context");
+        // Client-side video rendering via WebCodecs (Frame-by-Frame)
+        if (!window.VideoEncoder) {
+          throw new Error("Browser Anda belum mendukung fitur render video (WebCodecs API). Silakan gunakan Chrome/Edge/Safari terbaru.");
+        }
 
-        cropCtx.drawImage(
-          userImg,
-          croppedAreaPixels.x,
-          croppedAreaPixels.y,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height,
-          0, 0,
-          overlayDims.width,
-          overlayDims.height,
-        );
+        const videoElement = videoRef.current;
+        if (!videoElement) throw new Error("Video elemen tidak ditemukan");
 
-        const croppedBase64 = cropCanvas.toDataURL("image/png");
-
-        // Step 2: Send to server via SSE streaming endpoint
-        setRenderStage("Mempersiapkan...");
+        setRenderStage("Menyiapkan Encoder...");
         setRenderProgress(1);
 
-        const response = await fetch("/api/render-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            croppedImage: croppedBase64,
-            twibbonId: twibbon.id,
-          }),
-        });
+        const fps = 30;
+        const duration = videoElement.duration && isFinite(videoElement.duration) ? videoElement.duration : 15;
+        const totalFrames = Math.floor(duration * fps);
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Server error: ${response.status}`);
-        }
+        // === Req 3: Deteksi & decode audio dari overlay video ===
+        setRenderStage("Mendeteksi audio overlay...");
+        let audioBuffer: AudioBuffer | null = null;
+        let audioCtx: AudioContext | null = null;
+        const hasAudioEncoder = typeof window !== 'undefined' && 'AudioEncoder' in window;
 
-        if (!response.body) {
-          throw new Error("Browser tidak mendukung streaming response");
-        }
-
-        // Step 3: Read SSE stream for progress updates
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let videoUrl: string | null = null;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // Parse SSE events from buffer
-          const events = buffer.split("\n\n");
-          buffer = events.pop() || ""; // Keep incomplete event in buffer
-
-          for (const event of events) {
-            const dataLine = event.trim().replace(/^data:\s*/, "");
-            if (!dataLine) continue;
-
-            let data: Record<string, unknown>;
-            try {
-              data = JSON.parse(dataLine);
-            } catch {
-              // Incomplete or invalid JSON chunk, skip
-              continue;
+        if (hasAudioEncoder) {
+          try {
+            const response = await fetch(twibbon.overlayFile);
+            const arrayBuffer = await response.arrayBuffer();
+            audioCtx = new AudioContext();
+            const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+            if (decoded.duration > 0 && decoded.numberOfChannels > 0) {
+              audioBuffer = decoded;
             }
-
-            if (data.stage === "error") {
-              throw new Error((data.error as string) || "Server render gagal");
-            }
-
-            // Update progress
-            if (typeof data.progress === "number") {
-              setRenderProgress(data.progress);
-            }
-
-            // Update stage message
-            if (data.message) {
-              setRenderStage(data.message as string);
-            }
-
-            // Rendering done
-            if (data.stage === "done" && data.videoUrl) {
-              videoUrl = data.videoUrl as string;
-            }
+          } catch {
+            // Overlay tidak memiliki audio atau gagal di-decode — lanjut tanpa audio
+            audioBuffer = null;
+            if (audioCtx) { audioCtx.close(); audioCtx = null; }
           }
         }
+        const hasAudio = audioBuffer !== null;
+        // === END audio detection ===
 
-        if (!videoUrl) {
-          throw new Error("Server tidak mengembalikan URL video");
+        // Canvas for compositing
+        const compCanvas = document.createElement("canvas");
+        compCanvas.width = overlayDims.width;
+        compCanvas.height = overlayDims.height;
+        const compCtx = compCanvas.getContext("2d");
+        if (!compCtx) throw new Error("Tidak dapat membuat canvas context");
+
+        // Temporary canvas for chroma key
+        const chromaCanvas = document.createElement("canvas");
+        chromaCanvas.width = overlayDims.width;
+        chromaCanvas.height = overlayDims.height;
+
+        const muxer = new Muxer({
+          target: new ArrayBufferTarget(),
+          video: {
+            codec: 'avc',
+            width: overlayDims.width,
+            height: overlayDims.height,
+          },
+          // Tambahkan audio track jika overlay memiliki audio
+          ...(hasAudio && audioBuffer && {
+            audio: {
+              codec: 'aac',
+              sampleRate: audioBuffer.sampleRate,
+              numberOfChannels: audioBuffer.numberOfChannels,
+            },
+          }),
+          fastStart: 'in-memory',
+        });
+
+        const encoder = new window.VideoEncoder({
+          output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+          error: (e) => {
+            console.error("VideoEncoder error:", e);
+            throw new Error("Gagal meng-encode video.");
+          },
+        });
+
+        encoder.configure({
+          codec: 'avc1.42001f', // H.264 Baseline
+          width: overlayDims.width,
+          height: overlayDims.height,
+          bitrate: 2_500_000, // 2.5 Mbps
+          framerate: fps,
+        });
+
+        const seekVideo = (time: number) => {
+          return new Promise<void>((resolve) => {
+            const onSeeked = () => {
+              videoElement.removeEventListener('seeked', onSeeked);
+              resolve();
+            };
+            videoElement.addEventListener('seeked', onSeeked);
+            videoElement.currentTime = time;
+          });
+        };
+
+        const originalPaused = videoElement.paused;
+        videoElement.pause();
+
+        for (let i = 0; i < totalFrames; i++) {
+          // Progress video: 2-80% (sisakan 80-95% untuk audio)
+          setRenderProgress(2 + Math.floor((i / totalFrames) * 78));
+          setRenderStage(`Merender frame ${i + 1}/${totalFrames}...`);
+
+          // 1. Seek overlay video to exact frame
+          await seekVideo(i / fps);
+
+          // 2. Process chroma key
+          renderChromaKey(videoElement, chromaCanvas);
+
+          // 3. Clear and draw user photo
+          compCtx.clearRect(0, 0, overlayDims.width, overlayDims.height);
+          compCtx.drawImage(
+            userImg,
+            croppedAreaPixels.x,
+            croppedAreaPixels.y,
+            croppedAreaPixels.width,
+            croppedAreaPixels.height,
+            0, 0,
+            overlayDims.width,
+            overlayDims.height
+          );
+
+          // 4. Draw processed chroma key overlay on top
+          compCtx.drawImage(chromaCanvas, 0, 0, overlayDims.width, overlayDims.height);
+
+          // 5. Create VideoFrame and encode
+          const frame = new window.VideoFrame(compCanvas, {
+            timestamp: (i * 1000000) / fps,
+          });
+          const keyFrame = i % fps === 0;
+          encoder.encode(frame, { keyFrame });
+
+          // GC: Segera close frame untuk lepas memori GPU
+          frame.close();
+
+          // GC: Bersihkan pixel buffer canvas setelah di-encode
+          compCtx.clearRect(0, 0, overlayDims.width, overlayDims.height);
+
+          // GC: Drain encoder queue setiap ~1 detik untuk cegah penumpukan memori
+          if (i > 0 && i % fps === 0) {
+            await encoder.flush();
+          }
+
+          // Yield ke main thread untuk update UI & siklus GC
+          await new Promise(r => setTimeout(r, 0));
         }
 
-        setResultUrl(videoUrl);
+        setRenderStage("Finalisasi video frame...");
+        setRenderProgress(82);
+
+        await encoder.flush();
+        // GC: Tutup encoder untuk lepas resource WebCodecs
+        encoder.close();
+
+        // GC: Reset dimensi canvas untuk lepas GPU texture memory
+        compCanvas.width = 1;
+        compCanvas.height = 1;
+        chromaCanvas.width = 1;
+        chromaCanvas.height = 1;
+
+        // === Req 3: Encode audio track ===
+        if (hasAudio && audioBuffer && audioCtx && hasAudioEncoder) {
+          setRenderStage("Memproses audio...");
+          setRenderProgress(85);
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const audioEncoder = new (window as any).AudioEncoder({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            output: (chunk: any, meta: any) => muxer.addAudioChunk(chunk, meta),
+            error: (e: Error) => console.error("AudioEncoder error:", e),
+          });
+
+          audioEncoder.configure({
+            codec: 'mp4a.40.2', // AAC-LC
+            sampleRate: audioBuffer.sampleRate,
+            numberOfChannels: audioBuffer.numberOfChannels,
+            bitrate: 128_000,
+          });
+
+          const CHUNK_FRAMES = 1024;
+          // Potong audio sesuai durasi video yang di-render
+          const maxSamples = Math.min(
+            audioBuffer.length,
+            Math.floor(duration * audioBuffer.sampleRate)
+          );
+
+          for (let offset = 0; offset < maxSamples; offset += CHUNK_FRAMES) {
+            const frameCount = Math.min(CHUNK_FRAMES, maxSamples - offset);
+
+            // Format f32-planar: [ch0_samples..., ch1_samples...]
+            const planarData = new Float32Array(frameCount * audioBuffer.numberOfChannels);
+            for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
+              planarData.set(
+                audioBuffer.getChannelData(c).subarray(offset, offset + frameCount),
+                c * frameCount
+              );
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const audioData = new (window as any).AudioData({
+              format: 'f32-planar',
+              sampleRate: audioBuffer.sampleRate,
+              numberOfFrames: frameCount,
+              numberOfChannels: audioBuffer.numberOfChannels,
+              timestamp: Math.round((offset / audioBuffer.sampleRate) * 1_000_000),
+              data: planarData,
+            });
+
+            audioEncoder.encode(audioData);
+            audioData.close();
+
+            // Yield setiap 32 chunk (~750ms audio) agar UI tidak freeze
+            if (offset % (CHUNK_FRAMES * 32) === 0) {
+              await new Promise(r => setTimeout(r, 0));
+            }
+          }
+
+          setRenderProgress(93);
+          await audioEncoder.flush();
+          audioEncoder.close();
+          audioCtx.close();
+        }
+        // === END audio encoding ===
+
+        setRenderStage("Menyelesaikan video...");
+        setRenderProgress(95);
+        muxer.finalize();
+
+        const { buffer } = muxer.target;
+        const blob = new Blob([buffer], { type: "video/mp4" });
+        const url = URL.createObjectURL(blob);
+
+        setResultUrl(url);
+
+        if (!originalPaused) {
+          videoElement.play().catch(() => {});
+        }
       }
     } catch (e: unknown) {
       console.error(e);
@@ -601,6 +743,14 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     style={{ color: "#4f4d9a", opacity: 0.8 }}
                   >
                     {renderStage || "Mempersiapkan..."}
+                  </p>
+
+                  {/* Warning: jangan tutup browser */}
+                  <p
+                    className="text-xs font-semibold text-center mt-3 leading-relaxed"
+                    style={{ color: "#b45309", opacity: 0.9 }}
+                  >
+                    ⏳ Mohon jangan menutup browser atau berpindah aplikasi selama proses berlangsung.
                   </p>
                 </div>
               ) : (
