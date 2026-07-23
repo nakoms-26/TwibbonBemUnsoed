@@ -34,6 +34,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStage, setRenderStage] = useState("");
+  // Req 4: Deteksi dukungan WebCodecs saat mount
+  const [webCodecsSupported, setWebCodecsSupported] = useState<boolean | null>(null);
   const isVideo = twibbon.type === "VIDEO";
 
   const [overlayDims, setOverlayDims] = useState<{
@@ -44,6 +46,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // UX 3: Canvas untuk live preview frame saat encoding
+  const livePreviewRef = useRef<HTMLCanvasElement>(null);
 
   const [containerSize, setContainerSize] = useState<{
     width: number;
@@ -51,6 +55,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Req 4: Feature detection on mount
+  useEffect(() => {
+    setWebCodecsSupported(typeof window !== 'undefined' && 'VideoEncoder' in window);
+  }, []);
 
   useEffect(() => {
     const loadOverlay = async () => {
@@ -326,6 +335,15 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
           // GC: Segera close frame untuk lepas memori GPU
           frame.close();
+
+          // UX 3: Tampilkan frame yang sedang di-encode sebagai live preview
+          const liveCanvas = livePreviewRef.current;
+          if (liveCanvas) {
+            liveCanvas.width = overlayDims.width;
+            liveCanvas.height = overlayDims.height;
+            const liveCtx = liveCanvas.getContext('2d');
+            if (liveCtx) liveCtx.drawImage(chromaCanvas, 0, 0);
+          }
 
           // GC: Bersihkan pixel buffer canvas setelah di-encode
           compCtx.clearRect(0, 0, overlayDims.width, overlayDims.height);
@@ -737,6 +755,17 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     />
                   </div>
 
+                  {/* UX 3: Live frame preview */}
+                  <canvas
+                    ref={livePreviewRef}
+                    className="w-full rounded-xl mt-3 object-contain"
+                    style={{
+                      maxHeight: '140px',
+                      background: '#1e1b4b',
+                      border: '1px solid rgba(79,77,154,0.2)',
+                    }}
+                  />
+
                   {/* Stage Description */}
                   <p
                     className="text-xs font-semibold text-center"
@@ -751,6 +780,23 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     style={{ color: "#b45309", opacity: 0.9 }}
                   >
                     ⏳ Mohon jangan menutup browser atau berpindah aplikasi selama proses berlangsung.
+                  </p>
+                </div>
+              ) : isVideo && webCodecsSupported === false ? (
+                /* Req 4: Fallback warning — WebCodecs tidak didukung */
+                <div
+                  className="rounded-2xl p-5 border"
+                  style={{
+                    background: "rgba(180, 83, 9, 0.06)",
+                    borderColor: "rgba(180, 83, 9, 0.25)",
+                  }}
+                >
+                  <p className="text-sm font-extrabold mb-2" style={{ color: "#92400e" }}>
+                    ⚠️ Browser Tidak Didukung
+                  </p>
+                  <p className="text-xs font-semibold leading-relaxed" style={{ color: "#78350f" }}>
+                    Browser Anda tidak mendukung render video mulus (WebCodecs API).
+                    Silakan gunakan <strong>Chrome</strong> atau <strong>Safari</strong> versi terbaru untuk menggunakan fitur ini.
                   </p>
                 </div>
               ) : (
