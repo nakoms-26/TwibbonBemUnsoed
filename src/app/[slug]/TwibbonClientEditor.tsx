@@ -31,6 +31,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Record<string, number> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderStage, setRenderStage] = useState("");
   const isVideo = twibbon.type === "VIDEO";
 
   const [overlayDims, setOverlayDims] = useState<{
@@ -158,11 +160,14 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const generateTwibbon = async () => {
     if (!imageSrc || !croppedAreaPixels || !overlayDims) return;
     setIsProcessing(true);
+    setRenderProgress(0);
+    setRenderStage("");
 
     try {
       const userImg = await createImage(imageSrc);
 
       if (!isVideo) {
+        // Client-side image compositing (unchanged)
         const overlayImg = await createImage(twibbon.overlayFile);
         const canvas = document.createElement("canvas");
         canvas.width = overlayDims.width;
@@ -185,119 +190,112 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           setResultUrl(canvas.toDataURL("image/png"));
         }
       } else {
-        // Browser-side video processing using MediaRecorder
-        const canvasWidth = overlayDims.width;
-        const canvasHeight = overlayDims.height;
+        // Server-side video rendering via FFmpeg
+        // Step 1: Create cropped image as base64
+        const cropCanvas = document.createElement("canvas");
+        cropCanvas.width = overlayDims.width;
+        cropCanvas.height = overlayDims.height;
+        const cropCtx = cropCanvas.getContext("2d");
+        if (!cropCtx) throw new Error("Tidak dapat membuat canvas context");
 
-        // Create offscreen canvas for compositing
-        const outputCanvas = document.createElement("canvas");
-        outputCanvas.width = canvasWidth;
-        outputCanvas.height = canvasHeight;
-        const ctx = outputCanvas.getContext("2d");
-        if (!ctx) throw new Error("Tidak dapat membuat canvas context");
-
-        // Create user photo canvas (cropped)
-        const userCanvas = document.createElement("canvas");
-        userCanvas.width = canvasWidth;
-        userCanvas.height = canvasHeight;
-        const userCtx = userCanvas.getContext("2d");
-        if (!userCtx) throw new Error("Tidak dapat membuat user canvas context");
-        userCtx.drawImage(
+        cropCtx.drawImage(
           userImg,
           croppedAreaPixels.x,
           croppedAreaPixels.y,
           croppedAreaPixels.width,
           croppedAreaPixels.height,
           0, 0,
-          canvasWidth,
-          canvasHeight,
+          overlayDims.width,
+          overlayDims.height,
         );
 
-        // Create overlay video element
-        const overlayVideo = document.createElement("video");
-        overlayVideo.crossOrigin = "anonymous";
-        overlayVideo.src = twibbon.overlayFile;
-        overlayVideo.muted = true;
-        overlayVideo.loop = false;
-        overlayVideo.playsInline = true;
+        const croppedBase64 = cropCanvas.toDataURL("image/png");
 
-        await new Promise<void>((resolve, reject) => {
-          overlayVideo.oncanplaythrough = () => resolve();
-          overlayVideo.onerror = () => reject(new Error("Gagal memuat video overlay"));
-          overlayVideo.load();
+        // Step 2: Send to server via SSE streaming endpoint
+        setRenderStage("Mempersiapkan...");
+        setRenderProgress(1);
+
+        const response = await fetch("/api/render-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            croppedImage: croppedBase64,
+            twibbonId: twibbon.id,
+          }),
         });
 
-        const videoDuration = overlayVideo.duration;
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server error: ${response.status}`);
+        }
 
-        // Start MediaRecorder
-        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-          ? "video/webm;codecs=vp9"
-          : MediaRecorder.isTypeSupported("video/webm")
-          ? "video/webm"
-          : "video/mp4";
+        if (!response.body) {
+          throw new Error("Browser tidak mendukung streaming response");
+        }
 
-        const stream = outputCanvas.captureStream(30);
-        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
-        const chunks: BlobPart[] = [];
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        // Step 3: Read SSE stream for progress updates
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let videoUrl: string | null = null;
 
-        const recordingDone = new Promise<string>((resolve) => {
-          recorder.onstop = () => {
-            const blob = new Blob(chunks, { type: mimeType });
-            resolve(URL.createObjectURL(blob));
-          };
-        });
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        recorder.start();
-        overlayVideo.currentTime = 0;
-        await overlayVideo.play();
+          buffer += decoder.decode(value, { stream: true });
 
-        // Dedicated offscreen 2D canvas for software chroma key processing
-        const chromaCanvas = document.createElement("canvas");
-        chromaCanvas.width = canvasWidth;
-        chromaCanvas.height = canvasHeight;
-        const chromaCtx = chromaCanvas.getContext("2d", { willReadFrequently: true });
-        if (!chromaCtx) throw new Error("Tidak dapat membuat chroma canvas context");
+          // Parse SSE events from buffer
+          const events = buffer.split("\n\n");
+          buffer = events.pop() || ""; // Keep incomplete event in buffer
 
-        // Render frames: user photo base + chroma-keyed overlay on top
-        await new Promise<void>((resolve) => {
-          const drawFrame = () => {
-            if (overlayVideo.ended) {
-              resolve();
-              return;
+          for (const event of events) {
+            const dataLine = event.trim().replace(/^data:\s*/, "");
+            if (!dataLine) continue;
+
+            let data: Record<string, unknown>;
+            try {
+              data = JSON.parse(dataLine);
+            } catch {
+              // Incomplete or invalid JSON chunk, skip
+              continue;
             }
-            if (overlayVideo.videoWidth > 0) {
-              // Draw video frame to chroma canvas
-              chromaCtx.drawImage(overlayVideo, 0, 0, canvasWidth, canvasHeight);
-              // Software chroma key: remove pure green pixels
-              const imageData = chromaCtx.getImageData(0, 0, canvasWidth, canvasHeight);
-              const data = imageData.data;
-              for (let i = 0; i < data.length; i += 4) {
-                const r = data[i], g = data[i + 1], b = data[i + 2];
-                if (g > 150 && r < 80 && b < 80) {
-                  data[i + 3] = 0; // Transparent
-                }
-              }
-              chromaCtx.putImageData(imageData, 0, 0);
-            }
-            // Composite: user photo base + chroma-keyed overlay
-            ctx.drawImage(userCanvas, 0, 0);
-            ctx.drawImage(chromaCanvas, 0, 0, canvasWidth, canvasHeight);
-            requestAnimationFrame(drawFrame);
-          };
-          overlayVideo.onended = () => resolve();
-          requestAnimationFrame(drawFrame);
-        });
 
-        recorder.stop();
-        const blobUrl = await recordingDone;
-        setResultUrl(blobUrl);
+            if (data.stage === "error") {
+              throw new Error((data.error as string) || "Server render gagal");
+            }
+
+            // Update progress
+            if (typeof data.progress === "number") {
+              setRenderProgress(data.progress);
+            }
+
+            // Update stage message
+            if (data.message) {
+              setRenderStage(data.message as string);
+            }
+
+            // Rendering done
+            if (data.stage === "done" && data.videoUrl) {
+              videoUrl = data.videoUrl as string;
+            }
+          }
+        }
+
+        if (!videoUrl) {
+          throw new Error("Server tidak mengembalikan URL video");
+        }
+
+        setResultUrl(videoUrl);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      alert("Terjadi kesalahan saat memproses twibbon: " + e.message);
+      const message = e instanceof Error ? e.message : "Kesalahan tidak diketahui";
+      alert("Terjadi kesalahan saat memproses twibbon: " + message);
     } finally {
       setIsProcessing(false);
+      setRenderProgress(0);
+      setRenderStage("");
     }
   };
 
@@ -562,43 +560,88 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               <h3 className="text-base font-extrabold uppercase tracking-tight mb-4" style={{ color: "#2f2f67" }}>
                 3. Ekspor
               </h3>
-              <button
-                onClick={generateTwibbon}
-                disabled={!imageSrc || isProcessing || !overlayDims}
-                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
-                style={{
-                  background: "#4f4d9a",
-                  boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
-                }}
-              >
-                {isProcessing ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
+
+              {isProcessing && isVideo ? (
+                /* === Progress Bar UI for Server-Side Video Rendering === */
+                <div
+                  className="rounded-2xl p-5 border"
+                  style={{
+                    background: "rgba(79, 77, 154, 0.04)",
+                    borderColor: "rgba(79, 77, 154, 0.12)",
+                  }}
+                >
+                  {/* Percentage Number */}
+                  <div className="text-center mb-3">
+                    <span
+                      className="text-4xl font-extrabold tabular-nums"
+                      style={{ color: "#4f4d9a" }}
                     >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    <span>Memproses...</span>
-                  </>
-                ) : (
-                  <span>CROP & GABUNGKAN</span>
-                )}
-              </button>
+                      {renderProgress}%
+                    </span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div
+                    className="w-full h-3 rounded-full overflow-hidden mb-3"
+                    style={{ background: "rgba(79, 77, 154, 0.1)" }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${renderProgress}%`,
+                        background: "linear-gradient(90deg, #4f4d9a 0%, #7c78c9 100%)",
+                        transition: "width 0.3s ease",
+                      }}
+                    />
+                  </div>
+
+                  {/* Stage Description */}
+                  <p
+                    className="text-xs font-semibold text-center"
+                    style={{ color: "#4f4d9a", opacity: 0.8 }}
+                  >
+                    {renderStage || "Mempersiapkan..."}
+                  </p>
+                </div>
+              ) : (
+                <button
+                  onClick={generateTwibbon}
+                  disabled={!imageSrc || isProcessing || !overlayDims}
+                  className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
+                  style={{
+                    background: "#4f4d9a",
+                    boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                  }}
+                >
+                  {isProcessing ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <span>CROP & GABUNGKAN</span>
+                  )}
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -611,6 +654,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               <a
                 href={resultUrl}
                 download={`twibbon-${twibbon.slug}.${isVideo ? "mp4" : "png"}`}
+                target={isVideo ? "_blank" : undefined}
+                rel={isVideo ? "noopener noreferrer" : undefined}
                 onClick={() => {
                   fetch("/api/downloads", {
                     method: "POST",
