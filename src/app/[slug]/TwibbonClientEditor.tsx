@@ -239,29 +239,70 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const hasAudio = audioBuffer !== null;
         // === END audio detection ===
 
-        // Canvas for compositing
-        const compCanvas = document.createElement("canvas");
-        // H.264 membutuhkan dimensi kelipatan 2
+        // Canvas untuk compositing & chroma key — dimensi harus kelipatan 2 (H.264/HEVC requirement)
         const encodeWidth = Math.ceil(overlayDims.width / 2) * 2;
         const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
+
+        const compCanvas = document.createElement("canvas");
         compCanvas.width = encodeWidth;
         compCanvas.height = encodeHeight;
         const compCtx = compCanvas.getContext("2d");
         if (!compCtx) throw new Error("Tidak dapat membuat canvas context");
 
-        // Temporary canvas for chroma key
         const chromaCanvas = document.createElement("canvas");
         chromaCanvas.width = encodeWidth;
         chromaCanvas.height = encodeHeight;
 
+        // === Codec detection SEBELUM muxer dibuat ===
+        // iOS Safari: HEVC lebih didukung via hardware encoder daripada H.264
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const codecCandidates = isIOS ? [
+          'hvc1.1.6.L93.B0',  // HEVC Main 3.1 — iOS native hardware encoder
+          'hvc1.1.6.L120.B0', // HEVC Main 4.0
+          'avc1.42E01E',      // H.264 Baseline 3.0 (fallback)
+          'avc1.4D001E',      // H.264 Main 3.0 (fallback)
+        ] : [
+          'avc1.42E01E',      // H.264 Baseline 3.0 — kompatibilitas terluas
+          'avc1.4D001E',      // H.264 Main 3.0
+          'avc1.640028',      // H.264 High 4.0
+          'avc1.42001f',      // H.264 Baseline 3.1
+        ];
+
+        let encoderConfig: VideoEncoderConfig | null = null;
+        for (const codec of codecCandidates) {
+          const candidate: VideoEncoderConfig = {
+            codec,
+            width: encodeWidth,
+            height: encodeHeight,
+            bitrate: 2_000_000,
+          };
+          if ('isConfigSupported' in window.VideoEncoder) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const support = await (window.VideoEncoder as any).isConfigSupported(candidate);
+            if (support.supported) { encoderConfig = candidate; break; }
+          } else {
+            encoderConfig = candidate;
+            break;
+          }
+        }
+
+        if (!encoderConfig) {
+          throw new Error(
+            'Browser Anda tidak mendukung encoding video. ' +
+            'Silakan gunakan Chrome atau Safari terbaru.'
+          );
+        }
+
+        // Tentukan codec muxer dari codec encoder yang dipilih
+        const muxerVideoCodec = encoderConfig.codec.startsWith('hvc1') ? 'hevc' : 'avc';
+
         const muxer = new Muxer({
           target: new ArrayBufferTarget(),
           video: {
-            codec: 'avc',
+            codec: muxerVideoCodec,
             width: encodeWidth,
             height: encodeHeight,
           },
-          // Tambahkan audio track jika overlay memiliki audio
           ...(hasAudio && audioBuffer && {
             audio: {
               codec: 'aac',
@@ -272,7 +313,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           fastStart: 'in-memory',
         });
 
-        // Track error dari encoder secara eksplisit (throw di callback tidak propagate)
+        // Track error dari encoder (throw di dalam callback tidak propagate ke try-catch)
         let encoderError: Error | null = null;
         const encoder = new window.VideoEncoder({
           output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -281,46 +322,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             encoderError = e instanceof Error ? e : new Error(String(e));
           },
         });
-
-        // Codec fallback cascade: coba dari yang paling kompatibel
-        // framerate tidak disertakan agar lebih kompatibel di iOS Safari
-        const codecCandidates = [
-          'avc1.42E01E', // H.264 Baseline Level 3.0 — kompatibilitas terluas
-          'avc1.4D001E', // H.264 Main Level 3.0
-          'avc1.640028', // H.264 High Level 4.0
-          'avc1.42001f', // H.264 Baseline Level 3.1 (original)
-        ];
-
-        let encoderConfig: VideoEncoderConfig | null = null;
-
-        for (const codec of codecCandidates) {
-          const candidate: VideoEncoderConfig = {
-            codec,
-            width: encodeWidth,
-            height: encodeHeight,
-            bitrate: 2_000_000, // 2 Mbps
-          };
-
-          if ('isConfigSupported' in window.VideoEncoder) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const support = await (window.VideoEncoder as any).isConfigSupported(candidate);
-            if (support.supported) {
-              encoderConfig = candidate;
-              break;
-            }
-          } else {
-            // Browser tidak support isConfigSupported, langsung pakai kandidat pertama
-            encoderConfig = candidate;
-            break;
-          }
-        }
-
-        if (!encoderConfig) {
-          throw new Error(
-            'Browser Anda tidak mendukung encoding video (WebCodecs). ' +
-            'Silakan gunakan Chrome atau Safari versi terbaru.'
-          );
-        }
 
         encoder.configure(encoderConfig);
 
