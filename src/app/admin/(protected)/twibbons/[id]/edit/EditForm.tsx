@@ -46,11 +46,24 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
             color: "#4f4d9a",
           }}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.5"
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            ></path>
           </svg>
         </Link>
-        <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+        <h1
+          className="text-3xl md:text-5xl font-black uppercase tracking-tight"
+          style={{ color: "#2f2f67" }}
+        >
           EDIT TWIBBON
         </h1>
       </div>
@@ -65,7 +78,11 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
           boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
         }}
       >
-        <form action={updateTwibbon} onSubmit={handleSubmit} className="p-8 md:p-12 space-y-10">
+        <form
+          action={updateTwibbon}
+          onSubmit={handleSubmit}
+          className="p-8 md:p-12 space-y-10"
+        >
           {error && (
             <div
               className="p-4 rounded-xl text-xs font-bold border mb-6"
@@ -78,17 +95,24 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
               {error}
             </div>
           )}
-          
+
           <input type="hidden" name="id" value={twibbon.id} />
-          
+
           <div className="space-y-8">
             <div>
-              <h2 className="text-2xl font-black uppercase tracking-tight mb-6" style={{ color: "#2f2f67" }}>
+              <h2
+                className="text-2xl font-black uppercase tracking-tight mb-6"
+                style={{ color: "#2f2f67" }}
+              >
                 Informasi Dasar
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="title" className="block text-xs font-extrabold uppercase tracking-widest mb-2" style={{ color: "#2f2f67" }}>
+                  <label
+                    htmlFor="title"
+                    className="block text-xs font-extrabold uppercase tracking-widest mb-2"
+                    style={{ color: "#2f2f67" }}
+                  >
                     Judul Kampanye <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -108,7 +132,11 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                 </div>
 
                 <div>
-                  <label htmlFor="slug" className="block text-xs font-extrabold uppercase tracking-widest mb-2" style={{ color: "#2f2f67" }}>
+                  <label
+                    htmlFor="slug"
+                    className="block text-xs font-extrabold uppercase tracking-widest mb-2"
+                    style={{ color: "#2f2f67" }}
+                  >
                     Slug (URL) <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -125,15 +153,23 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                       color: "#2f2f67",
                     }}
                   />
-                  <p className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: "#4f4d9a", opacity: 0.7 }}>
-                    URL Publik: /<span style={{ color: "#4f4d9a" }}>nama-slug</span>
+                  <p
+                    className="mt-2 text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "#4f4d9a", opacity: 0.7 }}
+                  >
+                    URL Publik: /
+                    <span style={{ color: "#4f4d9a" }}>nama-slug</span>
                   </p>
                 </div>
               </div>
             </div>
 
             <div>
-              <label htmlFor="description" className="block text-xs font-extrabold uppercase tracking-widest mb-2" style={{ color: "#2f2f67" }}>
+              <label
+                htmlFor="description"
+                className="block text-xs font-extrabold uppercase tracking-widest mb-2"
+                style={{ color: "#2f2f67" }}
+              >
                 Caption
               </label>
               <textarea
@@ -152,14 +188,23 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
             </div>
           </div>
 
-          <div className="border-t pt-8" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-6" style={{ color: "#2f2f67" }}>
+          <div
+            className="border-t pt-8"
+            style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}
+          >
+            <h2
+              className="text-2xl font-black uppercase tracking-tight mb-6"
+              style={{ color: "#2f2f67" }}
+            >
               Pengaturan Format
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#2f2f67" }}>
+                <label
+                  className="block text-xs font-extrabold uppercase tracking-widest mb-3"
+                  style={{ color: "#2f2f67" }}
+                >
                   Tipe Twibbon
                 </label>
                 <div className="grid grid-cols-2 gap-4">
@@ -169,8 +214,14 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                     }`}
                     style={
                       type === "IMAGE"
-                        ? { borderColor: "#4f4d9a", background: "rgba(79, 77, 154, 0.08)" }
-                        : { borderColor: "rgba(79, 77, 154, 0.2)", background: "rgba(255, 255, 255, 0.5)" }
+                        ? {
+                            borderColor: "#4f4d9a",
+                            background: "rgba(79, 77, 154, 0.08)",
+                          }
+                        : {
+                            borderColor: "rgba(79, 77, 154, 0.2)",
+                            background: "rgba(255, 255, 255, 0.5)",
+                          }
                     }
                   >
                     <input
@@ -183,7 +234,12 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                     />
                     <span
                       className="text-xs font-black uppercase tracking-widest"
-                      style={{ color: type === "IMAGE" ? "#4f4d9a" : "rgba(47, 47, 103, 0.5)" }}
+                      style={{
+                        color:
+                          type === "IMAGE"
+                            ? "#4f4d9a"
+                            : "rgba(47, 47, 103, 0.5)",
+                      }}
                     >
                       GAMBAR (STATIC)
                     </span>
@@ -194,8 +250,14 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                     }`}
                     style={
                       type === "VIDEO"
-                        ? { borderColor: "#4f4d9a", background: "rgba(79, 77, 154, 0.08)" }
-                        : { borderColor: "rgba(79, 77, 154, 0.2)", background: "rgba(255, 255, 255, 0.5)" }
+                        ? {
+                            borderColor: "#4f4d9a",
+                            background: "rgba(79, 77, 154, 0.08)",
+                          }
+                        : {
+                            borderColor: "rgba(79, 77, 154, 0.2)",
+                            background: "rgba(255, 255, 255, 0.5)",
+                          }
                     }
                   >
                     <input
@@ -208,7 +270,12 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                     />
                     <span
                       className="text-xs font-black uppercase tracking-widest"
-                      style={{ color: type === "VIDEO" ? "#4f4d9a" : "rgba(47, 47, 103, 0.5)" }}
+                      style={{
+                        color:
+                          type === "VIDEO"
+                            ? "#4f4d9a"
+                            : "rgba(47, 47, 103, 0.5)",
+                      }}
                     >
                       VIDEO (WEBGL)
                     </span>
@@ -217,12 +284,18 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#2f2f67" }}>
+                <label
+                  className="block text-xs font-extrabold uppercase tracking-widest mb-3"
+                  style={{ color: "#2f2f67" }}
+                >
                   Status Publikasi
                 </label>
                 <label
                   className="relative flex items-center p-4 border rounded-xl cursor-pointer transition-all h-[54px]"
-                  style={{ background: "rgba(255, 255, 255, 0.6)", borderColor: "rgba(79, 77, 154, 0.2)" }}
+                  style={{
+                    background: "rgba(255, 255, 255, 0.6)",
+                    borderColor: "rgba(79, 77, 154, 0.2)",
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -231,7 +304,10 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                     className="h-5 w-5 rounded focus:ring-0 cursor-pointer"
                     style={{ accentColor: "#4f4d9a" }}
                   />
-                  <span className="ml-3 text-xs font-extrabold uppercase tracking-wider" style={{ color: "#2f2f67" }}>
+                  <span
+                    className="ml-3 text-xs font-extrabold uppercase tracking-wider"
+                    style={{ color: "#2f2f67" }}
+                  >
                     Aktifkan Sekarang
                   </span>
                 </label>
@@ -239,43 +315,78 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
             </div>
           </div>
 
-          <div className="border-t pt-8" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "#2f2f67" }}>
+          <div
+            className="border-t pt-8"
+            style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}
+          >
+            <h2
+              className="text-2xl font-black uppercase tracking-tight mb-2"
+              style={{ color: "#2f2f67" }}
+            >
               Unggah Berkas Baru (Opsional)
             </h2>
-            <p className="text-xs font-semibold mb-6" style={{ color: "#4f4d9a", opacity: 0.7 }}>Biarkan kosong jika tidak ingin mengubah file saat ini.</p>
-            
+            <p
+              className="text-xs font-semibold mb-6"
+              style={{ color: "#4f4d9a", opacity: 0.7 }}
+            >
+              Biarkan kosong jika tidak ingin mengubah file saat ini.
+            </p>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div
                 className="p-6 rounded-2xl border border-dashed"
-                style={{ background: "rgba(79, 77, 154, 0.04)", borderColor: "rgba(79, 77, 154, 0.25)" }}
+                style={{
+                  background: "rgba(79, 77, 154, 0.04)",
+                  borderColor: "rgba(79, 77, 154, 0.25)",
+                }}
               >
-                <label htmlFor="layerFile" className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#4f4d9a" }}>
+                <label
+                  htmlFor="layerFile"
+                  className="block text-xs font-extrabold uppercase tracking-widest mb-3"
+                  style={{ color: "#4f4d9a" }}
+                >
                   File Utama (Layer)
                 </label>
                 <input
                   type="file"
                   id="layerFile"
                   name="layerFile"
-                  accept={type === "VIDEO" ? "video/mp4,video/webm" : "image/png"}
+                  accept={
+                    type === "VIDEO" ? "video/mp4,video/webm" : "image/png"
+                  }
                   className="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:tracking-widest transition-colors file:cursor-pointer"
                   style={{ color: "#2f2f67" }}
                 />
-                <p className="mt-4 text-xs font-semibold leading-relaxed" style={{ color: "#4f4d9a", opacity: 0.7 }}>
+                <p
+                  className="mt-4 text-xs font-semibold leading-relaxed"
+                  style={{ color: "#4f4d9a", opacity: 0.7 }}
+                >
                   {type === "VIDEO"
-                    ? "Format MP4/WebM. Gunakan latar belakang green screen solid."
+                    ? "Format MP4/WebM."
                     : "Format PNG transparan."}
                 </p>
                 {twibbon.overlayFile && (
-                   <p className="mt-2 text-xs font-extrabold truncate" style={{ color: "#4f4d9a" }}>Saat ini: {twibbon.overlayFile.split('/').pop()}</p>
+                  <p
+                    className="mt-2 text-xs font-extrabold truncate"
+                    style={{ color: "#4f4d9a" }}
+                  >
+                    Saat ini: {twibbon.overlayFile.split("/").pop()}
+                  </p>
                 )}
               </div>
 
               <div
                 className="p-6 rounded-2xl border border-dashed"
-                style={{ background: "rgba(255, 255, 255, 0.4)", borderColor: "rgba(79, 77, 154, 0.2)" }}
+                style={{
+                  background: "rgba(255, 255, 255, 0.4)",
+                  borderColor: "rgba(79, 77, 154, 0.2)",
+                }}
               >
-                <label htmlFor="thumbnailFile" className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#2f2f67" }}>
+                <label
+                  htmlFor="thumbnailFile"
+                  className="block text-xs font-extrabold uppercase tracking-widest mb-3"
+                  style={{ color: "#2f2f67" }}
+                >
                   Thumbnail (Preview)
                 </label>
                 <input
@@ -286,14 +397,63 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
                   className="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:tracking-widest transition-colors file:cursor-pointer"
                   style={{ color: "#2f2f67" }}
                 />
-                <p className="mt-4 text-xs font-semibold leading-relaxed" style={{ color: "#4f4d9a", opacity: 0.7 }}>
+                <p
+                  className="mt-4 text-xs font-semibold leading-relaxed"
+                  style={{ color: "#4f4d9a", opacity: 0.7 }}
+                >
                   Format JPG/PNG.
                 </p>
                 {twibbon.thumbnail && (
-                   <p className="mt-2 text-xs font-extrabold truncate" style={{ color: "#2f2f67" }}>Saat ini: {twibbon.thumbnail.split('/').pop()}</p>
+                  <p
+                    className="mt-2 text-xs font-extrabold truncate"
+                    style={{ color: "#2f2f67" }}
+                  >
+                    Saat ini: {twibbon.thumbnail.split("/").pop()}
+                  </p>
                 )}
               </div>
             </div>
+
+            {type === "VIDEO" && (
+              <div
+                className="mt-6 p-4 rounded-2xl text-xs font-semibold leading-relaxed space-y-1.5"
+                style={{
+                  background: "rgba(79, 77, 154, 0.06)",
+                  color: "#2f2f67",
+                  border: "1px solid rgba(79, 77, 154, 0.12)",
+                }}
+              >
+                <p
+                  className="font-extrabold uppercase tracking-wider mb-2"
+                  style={{ color: "#4f4d9a" }}
+                >
+                  Spesifikasi Video Overlay
+                </p>
+                <p>
+                  • <b>Resolusi:</b> 1080 × 1080 (square) · 1080 × 1350 (feeds)
+                  · 1080 × 1920 (reels/stories).
+                </p>
+                <p>
+                  • <b>FPS:</b> 30 fps
+                </p>
+                <p>
+                  • <b>Green screen:</b> Pure green{" "}
+                  <code
+                    className="px-1 py-0.5 rounded"
+                    style={{ background: "rgba(0,200,0,0.15)" }}
+                  >
+                    #00FF00
+                  </code>{" "}
+                  / RGB(0, 255, 0)
+                </p>
+                <p>
+                  • <b>Format:</b> MP4 H.264, bitrate 5–15 Mbps
+                </p>
+                <p>
+                  • <b>Durasi maks:</b> 15 detik
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="pt-8 flex flex-col md:flex-row justify-end items-center gap-4">
