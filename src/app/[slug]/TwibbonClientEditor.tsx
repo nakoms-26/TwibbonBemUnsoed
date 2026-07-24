@@ -213,13 +213,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const videoElement = videoRef.current;
         if (!videoElement) throw new Error('Video element tidak ditemukan');
 
-        // Cap resolusi output ke 720px di perangkat mobile (hemat CPU/memori)
-        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-        const MAX_DIM = isMobile ? 720 : 1080;
-        const scale = Math.min(1, MAX_DIM / Math.max(overlayDims.width, overlayDims.height));
-        // Dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
-        const encodeWidth  = Math.ceil(overlayDims.width  * scale / 2) * 2;
-        const encodeHeight = Math.ceil(overlayDims.height * scale / 2) * 2;
+        // Selalu Full HD — dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
+        const encodeWidth  = Math.ceil(overlayDims.width  / 2) * 2;
+        const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
 
         // Canvas WebGL untuk chroma key (GPU — jauh lebih cepat dari CPU pixel loop)
         const chromaCanvas = document.createElement('canvas');
