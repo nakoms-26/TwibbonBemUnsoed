@@ -217,17 +217,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const encodeWidth  = Math.ceil(overlayDims.width  / 2) * 2;
         const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
 
-        // Canvas WebGL untuk chroma key (GPU — jauh lebih cepat dari CPU pixel loop)
+        // Canvas WebGL untuk chroma key & compositing (GPU)
         const chromaCanvas = document.createElement('canvas');
         chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
         // Init WebGL chroma key context untuk recording
         const { initWebGL: initGL, renderChromaKey: renderGL } = await import('@/lib/webglChroma');
         initGL(chromaCanvas);
-
-        // Canvas composite 2D (sumber stream MediaRecorder)
-        const compCanvas = document.createElement('canvas');
-        compCanvas.width = encodeWidth; compCanvas.height = encodeHeight;
-        const compCtx = compCanvas.getContext('2d')!;
 
         // Deteksi MIME type terbaik yang didukung browser
         const mimePreference = [
@@ -240,8 +235,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
         if (!selectedMime) throw new Error('Browser tidak mendukung MediaRecorder. Gunakan Chrome atau Safari terbaru.');
 
-        // Setup recorder dari canvas stream
-        const stream = compCanvas.captureStream(30);
+        // Setup recorder dari WebGL canvas stream langsung (tanpa 2D canvas readback!)
+        const stream = chromaCanvas.captureStream(30);
         const recorder = new MediaRecorder(stream, {
           mimeType: selectedMime,
           videoBitsPerSecond: 3_000_000,
@@ -252,15 +247,15 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const duration = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.duration : 0;
         setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
 
-        // Kompositing per frame: WebGL chroma key (GPU) + composite 2D
+        // Kompositing per frame: Full GPU via WebGL single-pass shader
         const processFrame = (mediaTime: number) => {
-          // Chroma key via WebGL shader (GPU, tidak blokir CPU)
-          renderGL(videoElement, chromaCanvas);
-
-          // Composite: foto user di bawah, overlay chroma-keyed di atas
-          compCtx.clearRect(0, 0, encodeWidth, encodeHeight);
-          compCtx.drawImage(userImg, croppedAreaPixels.x, croppedAreaPixels.y, croppedAreaPixels.width, croppedAreaPixels.height, 0, 0, encodeWidth, encodeHeight);
-          compCtx.drawImage(chromaCanvas, 0, 0, encodeWidth, encodeHeight);
+          // Render video & foto user bersamaan di GPU
+          renderGL(videoElement, chromaCanvas, userImg, {
+            x: croppedAreaPixels.x,
+            y: croppedAreaPixels.y,
+            w: croppedAreaPixels.width,
+            h: croppedAreaPixels.height
+          });
 
           if (duration > 0) {
             setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
@@ -315,7 +310,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         });
 
         videoElement.loop = true; videoElement.onended = null;
-        compCanvas.width = 1; chromaCanvas.width = 1;
+        chromaCanvas.width = 1;
       }
     } catch (e: unknown) {
       console.error(e);
