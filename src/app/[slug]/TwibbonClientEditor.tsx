@@ -103,12 +103,28 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   }, [resultUrl, imageSrc]);
 
   // Live Chroma Key Preview for Video (Continuous Playback during crop)
+  // Throttled to 24fps & paused during recording to reduce load on low-end devices
   useEffect(() => {
     if (!isVideo) return;
 
     let animationId: number;
+    let lastTime = 0;
+    const TARGET_FPS = 24;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
-    const renderFrame = () => {
+    const renderFrame = (timestamp: number) => {
+      // Jangan render preview saat sedang recording (hemat CPU/GPU)
+      if (isProcessing) {
+        animationId = requestAnimationFrame(renderFrame);
+        return;
+      }
+
+      if (timestamp - lastTime < FRAME_INTERVAL) {
+        animationId = requestAnimationFrame(renderFrame);
+        return;
+      }
+      lastTime = timestamp;
+
       const video = videoRef.current;
       const canvas = previewCanvasRef.current;
 
@@ -129,7 +145,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
     animationId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(animationId);
-  }, [isVideo, twibbon.overlayFile, imageSrc]);
+  }, [isVideo, twibbon.overlayFile, imageSrc, isProcessing]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -197,16 +213,22 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const videoElement = videoRef.current;
         if (!videoElement) throw new Error('Video element tidak ditemukan');
 
-        // Dimensi kelipatan 2 (kompatibel encoder)
-        const encodeWidth  = Math.ceil(overlayDims.width  / 2) * 2;
-        const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
+        // Cap resolusi output ke 720px di perangkat mobile (hemat CPU/memori)
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        const MAX_DIM = isMobile ? 720 : 1080;
+        const scale = Math.min(1, MAX_DIM / Math.max(overlayDims.width, overlayDims.height));
+        // Dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
+        const encodeWidth  = Math.ceil(overlayDims.width  * scale / 2) * 2;
+        const encodeHeight = Math.ceil(overlayDims.height * scale / 2) * 2;
 
-        // Canvas chroma key
+        // Canvas WebGL untuk chroma key (GPU — jauh lebih cepat dari CPU pixel loop)
         const chromaCanvas = document.createElement('canvas');
         chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
-        const chromaCtx = chromaCanvas.getContext('2d')!;
+        // Init WebGL chroma key context untuk recording
+        const { initWebGL: initGL, renderChromaKey: renderGL } = await import('@/lib/webglChroma');
+        initGL(chromaCanvas);
 
-        // Canvas composite (sumber stream)
+        // Canvas composite 2D (sumber stream MediaRecorder)
         const compCanvas = document.createElement('canvas');
         compCanvas.width = encodeWidth; compCanvas.height = encodeHeight;
         const compCtx = compCanvas.getContext('2d')!;
@@ -234,20 +256,15 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const duration = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.duration : 0;
         setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
 
-        // Kompositing per frame: chroma key overlay + user photo
+        // Kompositing per frame: WebGL chroma key (GPU) + composite 2D
         const processFrame = (mediaTime: number) => {
-          chromaCtx.clearRect(0, 0, encodeWidth, encodeHeight);
-          chromaCtx.drawImage(videoElement, 0, 0, encodeWidth, encodeHeight);
-          const id = chromaCtx.getImageData(0, 0, encodeWidth, encodeHeight);
-          const d = id.data;
-          for (let p = 0; p < d.length; p += 4) {
-            if (d[p+1] > 150 && d[p] < 80 && d[p+2] < 80) d[p+3] = 0;
-          }
-          chromaCtx.putImageData(id, 0, 0);
+          // Chroma key via WebGL shader (GPU, tidak blokir CPU)
+          renderGL(videoElement, chromaCanvas);
 
+          // Composite: foto user di bawah, overlay chroma-keyed di atas
           compCtx.clearRect(0, 0, encodeWidth, encodeHeight);
           compCtx.drawImage(userImg, croppedAreaPixels.x, croppedAreaPixels.y, croppedAreaPixels.width, croppedAreaPixels.height, 0, 0, encodeWidth, encodeHeight);
-          compCtx.drawImage(chromaCanvas, 0, 0);
+          compCtx.drawImage(chromaCanvas, 0, 0, encodeWidth, encodeHeight);
 
           if (duration > 0) {
             setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
