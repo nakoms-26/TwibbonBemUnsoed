@@ -239,8 +239,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         if (!selectedMime) throw new Error('Browser tidak mendukung MediaRecorder. Gunakan Chrome atau Safari terbaru.');
 
         // Setup recorder dari WebGL canvas stream langsung (tanpa 2D canvas readback!)
-        // Gunakan 0 untuk manual capture, sehingga kita hanya merekam frame setelah render selesai
-        const stream = chromaCanvas.captureStream(0);
+        // Cek apakah browser mendukung manual capture (requestFrame)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const supportsManualCapture = typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)?.requestFrame === 'function';
+        
+        // Gunakan manual capture (0) jika didukung, atau fallback ke auto 30fps (30)
+        const stream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
         const [videoTrack] = stream.getVideoTracks();
         
         const recorder = new MediaRecorder(stream, {
@@ -264,7 +268,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           });
 
           // Beritahu Canvas untuk mengirim frame yang *baru saja selesai digambar* ke MediaRecorder
-          if (typeof (videoTrack as any).requestFrame === 'function') {
+          if (supportsManualCapture) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (videoTrack as any).requestFrame();
           }
 
