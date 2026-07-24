@@ -290,8 +290,19 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
           if (hasRVFC) {
             // Primary: RVFC — tiap frame baru dari video, real-time
+            let lastProcessed = 0;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const captureFrame = (_: number, meta: any) => {
+              // Throttle ke 30fps (buang frame ekstra jika video > 30fps)
+              if (meta.mediaTime - lastProcessed < 1 / 30) {
+                if (!videoElement.ended) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (videoElement as any).requestVideoFrameCallback(captureFrame);
+                }
+                return;
+              }
+              lastProcessed = meta.mediaTime;
+
               try { processFrame(meta.mediaTime); } catch (e) { recorder.stop(); return reject(e); }
               if (!videoElement.ended) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -304,12 +315,18 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           } else {
             // Fallback: RAF loop (Firefox & browser tanpa RVFC)
             let rafId: number;
+            let lastProcessed = 0;
             const rafLoop = () => {
               if (videoElement.ended) {
                 cancelAnimationFrame(rafId); recorder.stop(); return;
               }
-              try { processFrame(videoElement.currentTime); } catch (e) {
-                cancelAnimationFrame(rafId); recorder.stop(); reject(e); return;
+              const currentTime = videoElement.currentTime;
+              // Throttle ke 30fps
+              if (currentTime - lastProcessed >= 1 / 30) {
+                lastProcessed = currentTime;
+                try { processFrame(currentTime); } catch (e) {
+                  cancelAnimationFrame(rafId); recorder.stop(); reject(e); return;
+                }
               }
               rafId = requestAnimationFrame(rafLoop);
             };
