@@ -221,7 +221,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const chromaCanvas = document.createElement('canvas');
         chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
         // Init WebGL chroma key context untuk recording
-        const { initWebGL: initGL, renderChromaKey: renderGL } = await import('@/lib/webglChroma');
+        const { initWebGL: initGL, renderChromaKey: renderGL, destroyWebGL } = await import('@/lib/webglChroma');
+        
+        // Hapus context WebGL preview agar tidak ada 2 context aktif bersamaan (mencegah memory leak / context lost)
+        destroyWebGL();
         initGL(chromaCanvas);
 
         // Deteksi MIME type terbaik yang didukung browser
@@ -319,6 +322,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
         videoElement.loop = true; videoElement.onended = null;
         chromaCanvas.width = 1;
+        
+        // Hapus context WebGL recording, bersihkan memori GPU
+        destroyWebGL();
       }
     } catch (e: unknown) {
       console.error(e);

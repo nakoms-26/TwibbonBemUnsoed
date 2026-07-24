@@ -188,3 +188,16 @@ export function renderChromaKey(
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
+
+export function destroyWebGL() {
+  if (glContext) {
+    glContext.getExtension('WEBGL_lose_context')?.loseContext();
+    glContext = null;
+    shaderProgram = null;
+    positionBuffer = null;
+    texCoordBuffer = null;
+    videoTexture = null;
+    imageTexture = null;
+    lastUserImg = null;
+  }
+}
