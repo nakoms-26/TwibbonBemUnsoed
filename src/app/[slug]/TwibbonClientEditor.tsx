@@ -33,6 +33,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStage, setRenderStage] = useState("");
+  // Mime type yang dipakai saat recording — menentukan ekstensi file download
+  const [videoMimeType, setVideoMimeType] = useState<string>('video/mp4');
   const isVideo = twibbon.type === "VIDEO";
 
   const [overlayDims, setOverlayDims] = useState<{
@@ -190,103 +192,117 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           setResultUrl(canvas.toDataURL("image/png"));
         }
       } else {
-        // Server-side video rendering via FFmpeg
-        // Step 1: Create cropped image as base64
-        const cropCanvas = document.createElement("canvas");
-        cropCanvas.width = overlayDims.width;
-        cropCanvas.height = overlayDims.height;
-        const cropCtx = cropCanvas.getContext("2d");
-        if (!cropCtx) throw new Error("Tidak dapat membuat canvas context");
+        // === CSR: Canvas Stream + MediaRecorder ===
+        // Real-time recording, tanpa dependency eksternal
+        const videoElement = videoRef.current;
+        if (!videoElement) throw new Error('Video element tidak ditemukan');
 
-        cropCtx.drawImage(
-          userImg,
-          croppedAreaPixels.x,
-          croppedAreaPixels.y,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height,
-          0, 0,
-          overlayDims.width,
-          overlayDims.height,
-        );
+        // Dimensi kelipatan 2 (kompatibel encoder)
+        const encodeWidth  = Math.ceil(overlayDims.width  / 2) * 2;
+        const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
 
-        const croppedBase64 = cropCanvas.toDataURL("image/png");
+        // Canvas chroma key
+        const chromaCanvas = document.createElement('canvas');
+        chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
+        const chromaCtx = chromaCanvas.getContext('2d')!;
 
-        // Step 2: Send to server via SSE streaming endpoint
-        setRenderStage("Mempersiapkan...");
-        setRenderProgress(1);
+        // Canvas composite (sumber stream)
+        const compCanvas = document.createElement('canvas');
+        compCanvas.width = encodeWidth; compCanvas.height = encodeHeight;
+        const compCtx = compCanvas.getContext('2d')!;
 
-        const response = await fetch("/api/render-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            croppedImage: croppedBase64,
-            twibbonId: twibbon.id,
-          }),
+        // Deteksi MIME type terbaik yang didukung browser
+        const mimePreference = [
+          'video/mp4',
+          'video/webm;codecs=h264',
+          'video/webm;codecs=vp9',
+          'video/webm;codecs=vp8',
+          'video/webm',
+        ];
+        const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+        if (!selectedMime) throw new Error('Browser tidak mendukung MediaRecorder. Gunakan Chrome atau Safari terbaru.');
+
+        // Setup recorder dari canvas stream
+        const stream = compCanvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, {
+          mimeType: selectedMime,
+          videoBitsPerSecond: 3_000_000,
+        });
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+        const duration = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.duration : 0;
+        setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
+
+        // Kompositing per frame: chroma key overlay + user photo
+        const processFrame = (mediaTime: number) => {
+          chromaCtx.clearRect(0, 0, encodeWidth, encodeHeight);
+          chromaCtx.drawImage(videoElement, 0, 0, encodeWidth, encodeHeight);
+          const id = chromaCtx.getImageData(0, 0, encodeWidth, encodeHeight);
+          const d = id.data;
+          for (let p = 0; p < d.length; p += 4) {
+            if (d[p+1] > 150 && d[p] < 80 && d[p+2] < 80) d[p+3] = 0;
+          }
+          chromaCtx.putImageData(id, 0, 0);
+
+          compCtx.clearRect(0, 0, encodeWidth, encodeHeight);
+          compCtx.drawImage(userImg, croppedAreaPixels.x, croppedAreaPixels.y, croppedAreaPixels.width, croppedAreaPixels.height, 0, 0, encodeWidth, encodeHeight);
+          compCtx.drawImage(chromaCanvas, 0, 0);
+
+          if (duration > 0) {
+            setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
+            setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+          }
+        };
+
+        videoElement.currentTime = 0; videoElement.loop = false;
+        const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+        await new Promise<void>((resolve, reject) => {
+          recorder.onstop = () => {
+            try {
+              const blob = new Blob(chunks, { type: selectedMime });
+              setResultUrl(URL.createObjectURL(blob));
+              setVideoMimeType(selectedMime);
+              setRenderProgress(100); setRenderStage('Selesai!');
+              resolve();
+            } catch (e) { reject(e); }
+          };
+
+          if (hasRVFC) {
+            // Primary: RVFC — tiap frame baru dari video, real-time
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const captureFrame = (_: number, meta: any) => {
+              try { processFrame(meta.mediaTime); } catch (e) { recorder.stop(); return reject(e); }
+              if (!videoElement.ended) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (videoElement as any).requestVideoFrameCallback(captureFrame);
+              }
+            };
+            videoElement.onended = () => recorder.stop();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (videoElement as any).requestVideoFrameCallback(captureFrame);
+          } else {
+            // Fallback: RAF loop (Firefox & browser tanpa RVFC)
+            let rafId: number;
+            const rafLoop = () => {
+              if (videoElement.ended) {
+                cancelAnimationFrame(rafId); recorder.stop(); return;
+              }
+              try { processFrame(videoElement.currentTime); } catch (e) {
+                cancelAnimationFrame(rafId); recorder.stop(); reject(e); return;
+              }
+              rafId = requestAnimationFrame(rafLoop);
+            };
+            rafId = requestAnimationFrame(rafLoop);
+          }
+
+          recorder.start(200); // kumpulkan chunk tiap 200ms
+          videoElement.play().catch((e) => { recorder.stop(); reject(e); });
         });
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Server error: ${response.status}`);
-        }
-
-        if (!response.body) {
-          throw new Error("Browser tidak mendukung streaming response");
-        }
-
-        // Step 3: Read SSE stream for progress updates
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let videoUrl: string | null = null;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // Parse SSE events from buffer
-          const events = buffer.split("\n\n");
-          buffer = events.pop() || ""; // Keep incomplete event in buffer
-
-          for (const event of events) {
-            const dataLine = event.trim().replace(/^data:\s*/, "");
-            if (!dataLine) continue;
-
-            let data: Record<string, unknown>;
-            try {
-              data = JSON.parse(dataLine);
-            } catch {
-              // Incomplete or invalid JSON chunk, skip
-              continue;
-            }
-
-            if (data.stage === "error") {
-              throw new Error((data.error as string) || "Server render gagal");
-            }
-
-            // Update progress
-            if (typeof data.progress === "number") {
-              setRenderProgress(data.progress);
-            }
-
-            // Update stage message
-            if (data.message) {
-              setRenderStage(data.message as string);
-            }
-
-            // Rendering done
-            if (data.stage === "done" && data.videoUrl) {
-              videoUrl = data.videoUrl as string;
-            }
-          }
-        }
-
-        if (!videoUrl) {
-          throw new Error("Server tidak mengembalikan URL video");
-        }
-
-        setResultUrl(videoUrl);
+        videoElement.loop = true; videoElement.onended = null;
+        compCanvas.width = 1; chromaCanvas.width = 1;
       }
     } catch (e: unknown) {
       console.error(e);
@@ -602,6 +618,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   >
                     {renderStage || "Mempersiapkan..."}
                   </p>
+
+                  {/* Warning: jangan pindah tab — browser throttle RAF saat tidak aktif */}
+                  {isVideo && (
+                    <p
+                      className="text-xs font-semibold text-center mt-2 leading-relaxed"
+                      style={{ color: "#b45309", opacity: 0.9 }}
+                    >
+                      ⏳ Jangan menutup atau berpindah tab selama proses berlangsung.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <button
@@ -653,7 +679,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               </div>
               <a
                 href={resultUrl}
-                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? "mp4" : "png"}`}
+                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? (videoMimeType.startsWith('video/mp4') ? 'mp4' : 'webm') : "png"}`}
                 onClick={() => {
                   fetch("/api/downloads", {
                     method: "POST",
