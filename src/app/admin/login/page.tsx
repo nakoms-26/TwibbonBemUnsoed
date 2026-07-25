@@ -40,16 +40,18 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col md:flex-row font-sans selection:bg-[#4f4d9a] selection:text-white relative overflow-hidden w-full"
+      className="h-[100dvh] flex flex-col md:flex-row font-sans selection:bg-[#4f4d9a] selection:text-white relative overflow-hidden w-full"
       style={{
-        background: "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #ddd8f8 100%)",
+        background:
+          "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #ddd8f8 100%)",
       }}
     >
       {/* Background Radial Ambient Glow */}
       <div
         className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full pointer-events-none blur-3xl opacity-50"
         style={{
-          background: "radial-gradient(circle, rgba(142, 168, 234, 0.4) 0%, rgba(245, 243, 255, 0) 70%)",
+          background:
+            "radial-gradient(circle, rgba(142, 168, 234, 0.4) 0%, rgba(245, 243, 255, 0) 70%)",
         }}
       />
 
@@ -60,7 +62,7 @@ export default function LoginPage() {
 
       {/* Bottom/Right Login Form Section */}
       <section
-        className="rounded-t-[2.5rem] md:rounded-t-none md:rounded-l-[3.5rem] px-6 py-10 md:px-12 relative z-20 mt-auto md:mt-0 w-full md:w-2/5 flex flex-col justify-center min-h-[50vh] md:min-h-screen shrink-0"
+        className="rounded-t-[2.5rem] md:rounded-t-none md:rounded-l-[3.5rem] px-6 py-8 md:px-12 relative z-20 mt-auto md:mt-0 w-full md:w-2/5 flex flex-col justify-center flex-1 md:h-full shrink-0"
         style={{
           background: "rgba(255, 255, 255, 0.70)",
           backdropFilter: "blur(24px)",
@@ -70,12 +72,11 @@ export default function LoginPage() {
         }}
       >
         <div className="max-w-xl mx-auto flex flex-col items-center w-full">
-          
           <div className="text-center mb-8">
-            <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>
-              Akses Terbatas
-            </p>
-            <h2 className="text-2xl md:text-4xl font-extrabold uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+            <h2
+              className="text-2xl md:text-4xl font-extrabold uppercase tracking-tight"
+              style={{ color: "#2f2f67" }}
+            >
               ADMIN LOGIN
             </h2>
           </div>
@@ -93,10 +94,14 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-            
+
             <div className="space-y-5">
               <div>
-                <label htmlFor="username" className="block text-xs font-extrabold uppercase tracking-widest mb-2" style={{ color: "#2f2f67" }}>
+                <label
+                  htmlFor="username"
+                  className="block text-xs font-extrabold uppercase tracking-widest mb-2"
+                  style={{ color: "#2f2f67" }}
+                >
                   Username
                 </label>
                 <input
@@ -116,9 +121,13 @@ export default function LoginPage() {
                   placeholder="Masukkan username"
                 />
               </div>
-              
+
               <div>
-                <label htmlFor="password" className="block text-xs font-extrabold uppercase tracking-widest mb-2" style={{ color: "#2f2f67" }}>
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-extrabold uppercase tracking-widest mb-2"
+                  style={{ color: "#2f2f67" }}
+                >
                   Password
                 </label>
                 <input
@@ -153,7 +162,7 @@ export default function LoginPage() {
                 {isLoading ? "Memproses..." : "Masuk ke Dashboard"}
               </button>
             </div>
-            
+
             <div className="text-center mt-6">
               <Link
                 href="/"
@@ -164,7 +173,6 @@ export default function LoginPage() {
               </Link>
             </div>
           </form>
-          
         </div>
       </section>
     </div>

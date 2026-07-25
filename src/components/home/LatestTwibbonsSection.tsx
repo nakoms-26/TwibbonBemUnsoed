@@ -40,8 +40,11 @@ export default async function LatestTwibbonsSection() {
           </div>
           <Link
             href="/twibbons"
-            className="text-xs font-extrabold uppercase tracking-wider transition-opacity hover:opacity-80 flex items-center gap-2 whitespace-nowrap"
-            style={{ color: "#4f4d9a" }}
+            className="text-xs font-extrabold uppercase tracking-wider rounded-full text-white transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 px-6 py-3 shadow-sm w-full sm:w-auto"
+            style={{
+              background: "#4f4d9a",
+              boxShadow: "0 4px 12px rgba(79, 77, 154, 0.25)",
+            }}
           >
             <span>Lihat Semua</span>
             <ArrowRight size={14} />

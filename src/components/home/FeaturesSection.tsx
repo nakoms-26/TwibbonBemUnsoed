@@ -10,7 +10,7 @@ export default function FeaturesSection() {
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#4f4d9a" }}>
               Platform Twibbon
             </p>
-            <h2 className="text-3xl md:text-4xl font-black leading-tight uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black leading-tight uppercase tracking-tight" style={{ color: "#2f2f67" }}>
               Gabungkan foto Anda
               <br />
               dalam hitungan detik.
