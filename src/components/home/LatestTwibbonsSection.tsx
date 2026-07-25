@@ -44,7 +44,7 @@ export default async function LatestTwibbonsSection() {
               className="text-xs font-semibold mt-1"
               style={{ color: "#4f4d9a", opacity: 0.8 }}
             >
-              Jelajahi twibbon dan video pilihan BEM Unsoed
+              Jelajahi twibbon dan video pilihan
             </p>
           </div>
           <Link
