@@ -10,9 +10,9 @@ export default async function LatestTwibbonsSection() {
     take: 6,
     include: {
       _count: {
-        select: { downloads: true }
-      }
-    }
+        select: { downloads: true },
+      },
+    },
   });
 
   if (twibbons.length === 0) return null;
@@ -29,13 +29,22 @@ export default async function LatestTwibbonsSection() {
       }}
     >
       <div className="max-w-[1440px] mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4 border-b pb-6" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
+        <div
+          className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4 border-b pb-6"
+          style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}
+        >
           <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+            <h2
+              className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight"
+              style={{ color: "#2f2f67" }}
+            >
               Kampanye Populer
             </h2>
-            <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>
-              Jelajahi twibbon dan video pilihan komunitas BEM Unsoed
+            <p
+              className="text-xs font-semibold mt-1"
+              style={{ color: "#4f4d9a", opacity: 0.8 }}
+            >
+              Jelajahi twibbon dan video pilihan BEM Unsoed
             </p>
           </div>
           <Link
