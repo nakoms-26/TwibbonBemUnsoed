@@ -10,7 +10,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 // Fungsi helper untuk menyimpan file secara lokal
-async function saveFile(file: File, folder: string): Promise<string> {
+async function saveFile(file: File, appName: string = "twibbon"): Promise<string> {
   const uploadApiUrl = process.env.NEXT_PUBLIC_UPLOAD_API_URL;
   const uploadSecret = process.env.UPLOAD_SECRET;
 
@@ -20,7 +20,7 @@ async function saveFile(file: File, folder: string): Promise<string> {
 
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("folder", folder);
+  formData.append("app", appName);
   formData.append("secret", uploadSecret);
 
   try {
@@ -70,8 +70,8 @@ export async function createTwibbon(formData: FormData) {
   const { title, slug, description, type, isActive, layerFile, thumbnailFile } = validatedFields.data;
 
   // Simpan file
-  const layerUrl = await saveFile(layerFile as File, type === "VIDEO" ? "videos" : "images");
-  const thumbnailUrl = await saveFile(thumbnailFile as File, "thumbnails");
+  const layerUrl = await saveFile(layerFile as File);
+  const thumbnailUrl = await saveFile(thumbnailFile as File);
 
   // Default config yang simpel
   const defaultConfig = {
@@ -142,11 +142,11 @@ export async function updateTwibbon(formData: FormData) {
   let thumbnailUrl = existingTwibbon.thumbnail;
 
   if (layerFile && layerFile.size > 0) {
-    layerUrl = await saveFile(layerFile as File, type === "VIDEO" ? "videos" : "images");
+    layerUrl = await saveFile(layerFile as File);
   }
   
   if (thumbnailFile && thumbnailFile.size > 0) {
-    thumbnailUrl = await saveFile(thumbnailFile as File, "thumbnails");
+    thumbnailUrl = await saveFile(thumbnailFile as File);
   }
 
   await prisma.twibbon.update({
