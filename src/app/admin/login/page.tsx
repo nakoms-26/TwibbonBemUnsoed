@@ -5,6 +5,13 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import HeroSection from "@/components/home/HeroSection";
+import { Archivo_Black } from "next/font/google";
+
+const archivoBlack = Archivo_Black({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,18 +47,17 @@ export default function LoginPage() {
 
   return (
     <div
-      className="h-[100dvh] flex flex-col md:flex-row font-sans selection:bg-[#4f4d9a] selection:text-white relative overflow-hidden w-full"
+      className="h-[100dvh] flex flex-col md:flex-row font-sans selection:bg-[#FDB927] selection:text-black relative overflow-hidden w-full"
       style={{
-        background:
-          "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #ddd8f8 100%)",
+        background: "linear-gradient(160deg, #1e0a4a 0%, #2d1b69 40%, #1a0f3d 100%)",
       }}
     >
-      {/* Background Radial Ambient Glow */}
+      {/* Grid Pattern Accent Overlay */}
       <div
-        className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full pointer-events-none blur-3xl opacity-50"
+        className="absolute inset-0 pointer-events-none opacity-[0.07]"
         style={{
-          background:
-            "radial-gradient(circle, rgba(142, 168, 234, 0.4) 0%, rgba(245, 243, 255, 0) 70%)",
+          backgroundImage: `radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px)`,
+          backgroundSize: "32px 32px",
         }}
       />
 
@@ -64,18 +70,16 @@ export default function LoginPage() {
       <section
         className="rounded-t-[2.5rem] md:rounded-t-none md:rounded-l-[3.5rem] px-6 py-8 md:px-12 relative z-20 mt-auto md:mt-0 w-full md:w-2/5 flex flex-col justify-center flex-1 md:h-full shrink-0"
         style={{
-          background: "rgba(255, 255, 255, 0.70)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          borderLeft: "1px solid rgba(79, 77, 154, 0.15)",
-          boxShadow: "-16px 0 40px rgba(79, 77, 154, 0.08)",
+          background: "#ffffff",
+          borderLeft: "2px solid #0a031e",
+          boxShadow: "-16px 0 40px rgba(0, 0, 0, 0.3)",
         }}
       >
         <div className="max-w-xl mx-auto flex flex-col items-center w-full">
           <div className="text-center mb-8">
             <h2
-              className="text-2xl md:text-4xl font-extrabold uppercase tracking-tight"
-              style={{ color: "#2f2f67" }}
+              className={`text-2xl md:text-4xl uppercase tracking-tight ${archivoBlack.className}`}
+              style={{ color: "#1e0a4a" }}
             >
               ADMIN LOGIN
             </h2>
@@ -100,7 +104,7 @@ export default function LoginPage() {
                 <label
                   htmlFor="username"
                   className="block text-xs font-extrabold uppercase tracking-widest mb-2"
-                  style={{ color: "#2f2f67" }}
+                  style={{ color: "#1e0a4a" }}
                 >
                   Username
                 </label>
@@ -114,9 +118,10 @@ export default function LoginPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   className="appearance-none block w-full px-5 py-3.5 border rounded-xl focus:outline-none sm:text-sm font-semibold transition-all shadow-sm"
                   style={{
-                    background: "rgba(255, 255, 255, 0.8)",
-                    borderColor: "rgba(79, 77, 154, 0.2)",
-                    color: "#2f2f67",
+                    background: "#ffffff",
+                    borderColor: "#0a031e",
+                    borderWidth: "2px",
+                    color: "#0a031e",
                   }}
                   placeholder="Masukkan username"
                 />
@@ -126,7 +131,7 @@ export default function LoginPage() {
                 <label
                   htmlFor="password"
                   className="block text-xs font-extrabold uppercase tracking-widest mb-2"
-                  style={{ color: "#2f2f67" }}
+                  style={{ color: "#1e0a4a" }}
                 >
                   Password
                 </label>
@@ -140,9 +145,10 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none block w-full px-5 py-3.5 border rounded-xl focus:outline-none sm:text-sm font-semibold transition-all shadow-sm"
                   style={{
-                    background: "rgba(255, 255, 255, 0.8)",
-                    borderColor: "rgba(79, 77, 154, 0.2)",
-                    color: "#2f2f67",
+                    background: "#ffffff",
+                    borderColor: "#0a031e",
+                    borderWidth: "2px",
+                    color: "#0a031e",
                   }}
                   placeholder="••••••••"
                 />
@@ -153,11 +159,8 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center py-4 px-4 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-                style={{
-                  background: "#4f4d9a",
-                  boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
-                }}
+                className="w-full flex justify-center py-4 px-4 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed border-[3px] border-[#0a031e] shadow-[4px_4px_0px_#1e0a4a] hover:shadow-[8px_8px_0px_#1e0a4a] hover:-translate-y-1 hover:-translate-x-1"
+                style={{ background: "#FDB927" }}
               >
                 {isLoading ? "Memproses..." : "Masuk ke Dashboard"}
               </button>
@@ -167,7 +170,7 @@ export default function LoginPage() {
               <Link
                 href="/"
                 className="inline-block text-xs font-bold uppercase tracking-wider transition-opacity hover:opacity-100"
-                style={{ color: "#4f4d9a", opacity: 0.8 }}
+                style={{ color: "#1e0a4a", opacity: 0.9 }}
               >
                 ← Kembali ke Beranda
               </Link>

@@ -21,11 +21,9 @@ export default async function LatestTwibbonsSection() {
     <section
       className="rounded-t-[2.5rem] md:rounded-t-[3.5rem] px-6 py-12 md:px-10 md:py-16 relative z-20 w-full"
       style={{
-        background: "rgba(255, 255, 255, 0.65)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderTop: "1px solid rgba(79, 77, 154, 0.15)",
-        boxShadow: "0 -16px 40px rgba(79, 77, 154, 0.08)",
+        background: "#ffffff",
+        borderTop: "1px solid rgba(45, 27, 105, 0.1)",
+        boxShadow: "0 -20px 40px rgba(0, 0, 0, 0.2)",
       }}
     >
       <div className="max-w-[1440px] mx-auto">
@@ -35,14 +33,14 @@ export default async function LatestTwibbonsSection() {
         >
           <div>
             <h2
-              className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight"
-              style={{ color: "#2f2f67" }}
+              className="text-2xl md:text-3xl font-black uppercase tracking-tight"
+              style={{ color: "#1e0a4a" }}
             >
               Kampanye Populer
             </h2>
             <p
-              className="text-xs font-semibold mt-1"
-              style={{ color: "#4f4d9a", opacity: 0.8 }}
+              className="text-xs font-bold mt-1"
+              style={{ color: "#2d1b69", opacity: 0.8 }}
             >
               Jelajahi twibbon dan video pilihan
             </p>
@@ -51,8 +49,8 @@ export default async function LatestTwibbonsSection() {
             href="/twibbons"
             className="text-xs font-extrabold uppercase tracking-wider rounded-full text-white transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 px-6 py-3 shadow-sm w-full sm:w-auto"
             style={{
-              background: "#4f4d9a",
-              boxShadow: "0 4px 12px rgba(79, 77, 154, 0.25)",
+              background: "#2d1b69",
+              boxShadow: "0 4px 12px rgba(45, 27, 105, 0.25)",
             }}
           >
             <span>Lihat Semua</span>

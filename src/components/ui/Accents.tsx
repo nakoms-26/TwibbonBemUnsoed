@@ -2,7 +2,7 @@ export const ArrowYellowLeft = () => (
   <svg
     viewBox="0 0 100 100"
     className="w-full h-full stroke-current overflow-visible"
-    style={{ color: "#8ea8ea" }}
+    style={{ color: "#FDB927" }}
     fill="none"
     strokeWidth="6"
     strokeLinecap="round"
@@ -17,7 +17,7 @@ export const ArrowYellowRight = () => (
   <svg
     viewBox="0 0 100 100"
     className="w-full h-full stroke-current overflow-visible"
-    style={{ color: "#4f4d9a" }}
+    style={{ color: "rgba(255,255,255,0.6)" }}
     fill="none"
     strokeWidth="6"
     strokeLinecap="round"
@@ -47,11 +47,11 @@ export const CircularBadge = () => (
   <div
     className="relative w-28 h-28 md:w-36 md:h-36 rounded-full flex items-center justify-center shadow-xl rotate-12 hover:scale-105 transition-transform cursor-pointer"
     style={{
-      background: "rgba(255, 255, 255, 0.85)",
+      background: "rgba(255, 255, 255, 0.12)",
       backdropFilter: "blur(16px)",
       WebkitBackdropFilter: "blur(16px)",
-      border: "1px solid rgba(79, 77, 154, 0.2)",
-      boxShadow: "0 8px 32px rgba(79, 77, 154, 0.15)",
+      border: "1px solid rgba(255, 255, 255, 0.2)",
+      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
     }}
   >
     <div className="absolute inset-1 animate-[spin_10s_linear_infinite]">
@@ -63,7 +63,7 @@ export const CircularBadge = () => (
         />
         <text
           className="text-[11px] font-black tracking-[0.18em] uppercase"
-          fill="#4f4d9a"
+          fill="#FDB927"
         >
           <textPath href="#circlePath" startOffset="0%">
             VOLUNTEER • EVENT • OPREC •
@@ -75,7 +75,7 @@ export const CircularBadge = () => (
       <svg
         viewBox="0 0 100 100"
         className="w-10 h-10 stroke-current"
-        style={{ color: "#2f2f67" }}
+        style={{ color: "rgba(255,255,255,0.8)" }}
         fill="none"
         strokeWidth="8"
         strokeLinecap="round"

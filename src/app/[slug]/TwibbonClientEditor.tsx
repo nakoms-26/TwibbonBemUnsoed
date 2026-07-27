@@ -372,9 +372,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden shadow-xl"
             style={{
               aspectRatio: currentAspectRatio,
-              background: "rgba(255, 255, 255, 0.7)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
+              background: "#ffffff",
               border: "1px solid rgba(79, 77, 154, 0.15)",
             }}
           >
@@ -403,7 +401,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden border-2 border-dashed transition-all shadow-xl"
             style={{
               aspectRatio: currentAspectRatio,
-              background: "rgba(255, 255, 255, 0.5)",
+              background: "#ffffff",
               borderColor: "rgba(79, 77, 154, 0.25)",
             }}
           >
@@ -506,7 +504,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   >
                     <div
                       className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12"
-                      style={{ background: "#4f4d9a" }}
+                      style={{ background: "#2d1b69" }}
                     >
                       <Upload size={24} />
                     </div>
@@ -528,9 +526,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
       <div
         className="w-full md:w-96 flex flex-col space-y-6 md:space-y-8 p-6 md:p-8 rounded-[2rem] border shadow-xl self-start h-full"
         style={{
-          background: "rgba(255, 255, 255, 0.65)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          background: "#ffffff",
           borderColor: "rgba(79, 77, 154, 0.12)",
           boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
         }}
@@ -552,8 +548,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   navigator.clipboard.writeText(twibbon.description);
                   alert("Caption berhasil disalin!");
                 }}
-                className="text-[10px] flex items-center space-x-1 font-extrabold text-white transition-all px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm hover:scale-105"
-                style={{ background: "#4f4d9a" }}
+                className="text-[10px] flex items-center space-x-1 font-extrabold text-black transition-all px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm hover:scale-105"
+                style={{ background: "#FDB927" }}
               >
                 <Copy size={12} />
                 <span>Salin</span>
@@ -677,10 +673,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 <button
                   onClick={generateTwibbon}
                   disabled={!imageSrc || isProcessing || !overlayDims}
-                  className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
+                  className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
                   style={{
-                    background: "#4f4d9a",
-                    boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                    background: "#FDB927",
+                    boxShadow: "0 4px 16px rgba(253, 185, 39, 0.3)",
                   }}
                 >
                   {isProcessing ? (
@@ -731,10 +727,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     body: JSON.stringify({ twibbonId: twibbon.id }),
                   }).catch(console.error);
                 }}
-                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
+                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
                 style={{
-                  background: "#4f4d9a",
-                  boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                  background: "#FDB927",
+                  boxShadow: "0 4px 16px rgba(253, 185, 39, 0.3)",
                 }}
               >
                 <Download size={16} />
