@@ -1,4 +1,11 @@
 import { ArrowRight, Image as ImageIcon, Camera, Download } from "lucide-react";
+import { Archivo_Black } from "next/font/google";
+
+const archivoBlack = Archivo_Black({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export default function FeaturesSection() {
   return (
@@ -14,7 +21,7 @@ export default function FeaturesSection() {
               Platform Twibbon
             </p>
             <h2
-              className="text-2xl sm:text-3xl md:text-4xl font-black leading-tight uppercase tracking-tight"
+              className={`text-2xl sm:text-3xl md:text-4xl leading-tight uppercase tracking-tight ${archivoBlack.className}`}
               style={{ color: "#1e0a4a" }}
             >
               Gabungkan foto Anda
@@ -35,7 +42,7 @@ export default function FeaturesSection() {
             }}
           >
             <h3
-              className="text-xl md:text-2xl uppercase leading-tight mb-2 font-black"
+              className={`text-xl md:text-2xl uppercase leading-tight mb-2 ${archivoBlack.className}`}
               style={{ color: "#1e0a4a" }}
             >
               PILIH
@@ -78,7 +85,7 @@ export default function FeaturesSection() {
             }}
           >
             <h3
-              className="text-xl md:text-2xl uppercase leading-tight mb-2 font-black"
+              className={`text-xl md:text-2xl uppercase leading-tight mb-2 ${archivoBlack.className}`}
               style={{ color: "#1e0a4a" }}
             >
               UPLOAD
@@ -120,7 +127,7 @@ export default function FeaturesSection() {
             }}
           >
             <h3
-              className="text-xl md:text-2xl uppercase leading-tight mb-2 font-black"
+              className={`text-xl md:text-2xl uppercase leading-tight mb-2 ${archivoBlack.className}`}
               style={{ color: "#1e0a4a" }}
             >
               DOWNLOAD

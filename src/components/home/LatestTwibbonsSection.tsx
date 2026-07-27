@@ -2,6 +2,13 @@ import Link from "next/link";
 import prisma from "@/lib/prisma";
 import LatestTwibbonsCarousel from "./LatestTwibbonsCarousel";
 import { ArrowRight } from "lucide-react";
+import { Archivo_Black } from "next/font/google";
+
+const archivoBlack = Archivo_Black({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export default async function LatestTwibbonsSection() {
   const twibbons = await prisma.twibbon.findMany({
@@ -33,7 +40,7 @@ export default async function LatestTwibbonsSection() {
         >
           <div>
             <h2
-              className="text-2xl md:text-3xl font-black uppercase tracking-tight"
+              className={`text-2xl md:text-3xl uppercase tracking-tight ${archivoBlack.className}`}
               style={{ color: "#1e0a4a" }}
             >
               Kampanye Populer
