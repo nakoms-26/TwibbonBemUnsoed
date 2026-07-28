@@ -279,12 +279,13 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             error: (e) => { throw e; },
           });
           videoEncoder.configure({
-            codec: 'avc1.4d002a', // H.264 Main Profile, Level 4.2 (supports up to 1080p and higher)
+            codec: 'avc1.4d002a', // H.264 Main Profile, Level 4.2
             width: encodeWidth,
             height: encodeHeight,
             bitrate: 4_000_000,
             framerate: 30,
             latencyMode: 'quality',
+            avc: { format: 'avc' }
           });
 
           // Audio Encoder (AAC) — hanya jika video punya audio
@@ -348,7 +349,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           const FPS = 30;
           const FRAME_DURATION_US = Math.round(1_000_000 / FPS); // microseconds per frame
 
-          const processFrame = (mediaTime: number) => {
+          const processFrame = () => {
             // Render WebGL chroma key ke canvas
             renderGL(videoElement, chromaCanvas, userImg, {
               x: croppedAreaPixels.x,
@@ -358,9 +359,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             }, chromaColor);
 
             // Ambil frame dari canvas dan encode ke H.264
-            // Gunakan mediaTime asli dari video untuk menjamin sync audio & video
+            // Gunakan frameCount * FRAME_DURATION_US untuk menjamin timestamp selalu naik secara monoton
             const videoFrame = new VideoFrame(chromaCanvas, {
-              timestamp: mediaTime * 1_000_000,
+              timestamp: frameCount * FRAME_DURATION_US,
               duration: FRAME_DURATION_US,
             });
             const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
@@ -369,6 +370,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             frameCount++;
 
             if (duration > 0) {
+              const mediaTime = videoElement.currentTime;
               setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
               setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
             }
@@ -403,15 +405,26 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             };
 
             const startRecording = () => {
-              isRecordingStarted = true;
               videoElement.play().catch(reject);
+              let hasStarted = false;
 
               if (hasRVFC) {
-                let lastProcessed = -1; // Inisialisasi -1 agar frame pertama selalu diproses
+                let lastProcessed = -1; 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const captureFrame = (_: number, meta: any) => {
-                  // Jika mediaTime mundur (karena loop/seek), reset lastProcessed
-                  if (meta.mediaTime < lastProcessed) lastProcessed = -1;
+                  if (!hasStarted) {
+                    // Tunggu sampai video benar-benar seek ke awal (< 0.1 detik)
+                    if (meta.mediaTime > 0.1) {
+                      if (!videoElement.ended) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        (videoElement as any).requestVideoFrameCallback(captureFrame);
+                      }
+                      return;
+                    }
+                    hasStarted = true;
+                    isRecordingStarted = true;
+                    audioTimestamp = 0;
+                  }
 
                   if (meta.mediaTime - lastProcessed < 1 / FPS) {
                     if (!videoElement.ended) {
@@ -421,7 +434,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     return;
                   }
                   lastProcessed = meta.mediaTime;
-                  try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
+                  try { processFrame(); } catch (e) { return reject(e); }
                   if (!videoElement.ended) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (videoElement as any).requestVideoFrameCallback(captureFrame);
@@ -437,11 +450,20 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 const rafLoop = () => {
                   if (videoElement.ended) { cancelAnimationFrame(rafId); finish(); return; }
                   const t = videoElement.currentTime;
-                  if (t < lastProcessed) lastProcessed = -1;
                   
+                  if (!hasStarted) {
+                    if (t > 0.1) {
+                      rafId = requestAnimationFrame(rafLoop);
+                      return;
+                    }
+                    hasStarted = true;
+                    isRecordingStarted = true;
+                    audioTimestamp = 0;
+                  }
+
                   if (t - lastProcessed >= 1 / FPS) {
                     lastProcessed = t;
-                    try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
+                    try { processFrame(); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
                   }
                   rafId = requestAnimationFrame(rafLoop);
                 };
@@ -449,16 +471,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               }
             };
 
-            // Pastikan video benar-benar sudah di awal sebelum mulai record
-            if (videoElement.currentTime > 0) {
-              const onSeeked = () => {
-                videoElement.removeEventListener('seeked', onSeeked);
-                startRecording();
-              };
-              videoElement.addEventListener('seeked', onSeeked);
-            } else {
-              startRecording();
-            }
+            startRecording();
           });
 
         } else {
