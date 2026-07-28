@@ -238,8 +238,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         // Init WebGL chroma key context untuk recording
         const { initWebGL: initGL, renderChromaKey: renderGL, destroyWebGL } = await import('@/lib/webglChroma');
         
-        // Hapus context WebGL preview agar tidak ada 2 context aktif bersamaan (mencegah memory leak / context lost)
-        destroyWebGL();
         initGL(chromaCanvas);
 
         // Cek apakah browser mendukung WebCodecs API (VideoEncoder)
