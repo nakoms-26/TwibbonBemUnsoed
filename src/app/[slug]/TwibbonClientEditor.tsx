@@ -237,13 +237,13 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         destroyWebGL();
         initGL(chromaCanvas);
 
-        // Deteksi MIME type terbaik yang didukung browser
+        // Deteksi MIME type terbaik yang didukung browser (dengan audio)
         const mimePreference = [
-          'video/mp4',
-          'video/webm;codecs=h264',
-          'video/webm;codecs=vp9',
-          'video/webm;codecs=vp8',
+          'video/webm;codecs=vp9,opus',
+          'video/webm;codecs=vp8,opus',
+          'video/webm;codecs=h264,opus',
           'video/webm',
+          'video/mp4',
         ];
         const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
         if (!selectedMime) throw new Error('Browser tidak mendukung MediaRecorder. Gunakan Chrome atau Safari terbaru.');
@@ -254,10 +254,25 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const supportsManualCapture = typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)?.requestFrame === 'function';
         
         // Gunakan manual capture (0) jika didukung, atau fallback ke auto 30fps (30)
-        const stream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
-        const [videoTrack] = stream.getVideoTracks();
+        const canvasStream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
+        const [videoTrack] = canvasStream.getVideoTracks();
+
+        // Tambahkan audio track dari video overlay agar suara ikut terekam
+        const combinedStream = new MediaStream([videoTrack]);
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const audioStream = (videoElement as any).captureStream
+            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (videoElement as any).captureStream()
+            : null;
+          if (audioStream) {
+            audioStream.getAudioTracks().forEach((track: MediaStreamTrack) => combinedStream.addTrack(track));
+          }
+        } catch (e) {
+          console.warn('Tidak bisa mengambil audio track dari video:', e);
+        }
         
-        const recorder = new MediaRecorder(stream, {
+        const recorder = new MediaRecorder(combinedStream, {
           mimeType: selectedMime,
           videoBitsPerSecond: 3_000_000,
         });
@@ -300,6 +315,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         };
 
         videoElement.currentTime = 0; videoElement.loop = false;
+        videoElement.muted = false; // Pastikan audio aktif saat direkam
         const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
 
         await new Promise<void>((resolve, reject) => {
