@@ -10,6 +10,7 @@ export const twibbonBaseSchema = z.object({
   slug: z.string().min(3, "Slug minimal 3 karakter").regex(/^[a-zA-Z0-9-]+$/, "Slug hanya boleh berisi huruf, angka, dan strip (-)"),
   description: z.string().optional(),
   type: z.enum(["IMAGE", "VIDEO"], { required_error: "Tipe harus IMAGE atau VIDEO" }),
+  chromaColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Format warna HEX tidak valid (contoh: #00FF00)").optional(),
   isActive: z.boolean().default(true),
   layerUrl: z.string().url("URL layer tidak valid").optional(),
   thumbnailUrl: z.string().url("URL thumbnail tidak valid").optional(),

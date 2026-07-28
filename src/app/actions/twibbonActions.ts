@@ -18,6 +18,7 @@ export async function createTwibbon(formData: FormData) {
     slug: formData.get("slug"),
     description: formData.get("description") || undefined,
     type: formData.get("type"),
+    chromaColor: formData.get("chromaColor") || undefined,
     isActive: formData.get("isActive") === "on" || formData.get("isActive") === "true",
     layerUrl: formData.get("layerUrl"),
     thumbnailUrl: formData.get("thumbnailUrl"),
@@ -29,31 +30,38 @@ export async function createTwibbon(formData: FormData) {
     throw new Error(validatedFields.error.errors[0].message);
   }
 
-  const { title, slug, description, type, isActive, layerUrl, thumbnailUrl } = validatedFields.data;
+  const { title, slug, description, type, isActive, chromaColor, layerUrl, thumbnailUrl } = validatedFields.data;
 
   // Default config yang simpel
   const defaultConfig = {
     overlayType: type,
     chromaKey: type === "VIDEO" ? {
-      color: [0.0, 1.0, 0.0],
+      color: chromaColor || "#00FF00",
       similarity: 0.1,
       smoothness: 0.08
     } : null,
     canvasSize: { width: 1080, height: 1080 }
   };
 
-  await prisma.twibbon.create({
-    data: {
-      title,
-      slug,
-      description,
-      type,
-      overlayFile: layerUrl,
-      thumbnail: thumbnailUrl,
-      isActive,
-      config: defaultConfig,
+  try {
+    await prisma.twibbon.create({
+      data: {
+        title,
+        slug,
+        description,
+        type,
+        overlayFile: layerUrl,
+        thumbnail: thumbnailUrl,
+        isActive,
+        config: defaultConfig,
+      }
+    });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      throw new Error("Gagal menyimpan: Slug (URL) sudah dipakai, mohon ganti dengan nama lain.");
     }
-  });
+    throw error;
+  }
 
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");
@@ -74,6 +82,7 @@ export async function updateTwibbon(formData: FormData) {
     slug: formData.get("slug"),
     description: formData.get("description") || undefined,
     type: formData.get("type"),
+    chromaColor: formData.get("chromaColor") || undefined,
     isActive: formData.get("isActive") === "on" || formData.get("isActive") === "true",
     layerUrl: formData.get("layerUrl") || undefined,
     thumbnailUrl: formData.get("thumbnailUrl") || undefined,
@@ -85,7 +94,7 @@ export async function updateTwibbon(formData: FormData) {
     throw new Error(validatedFields.error.errors[0].message);
   }
 
-  const { id, title, slug, description, type, isActive, layerUrl, thumbnailUrl } = validatedFields.data;
+  const { id, title, slug, description, type, isActive, chromaColor, layerUrl, thumbnailUrl } = validatedFields.data;
 
   const existingTwibbon = await prisma.twibbon.findUnique({
     where: { id: parseInt(id) }
@@ -98,19 +107,47 @@ export async function updateTwibbon(formData: FormData) {
   // Update files ONLY if new files are provided
   let finalLayerUrl = layerUrl || existingTwibbon.overlayFile;
   let finalThumbnailUrl = thumbnailUrl || existingTwibbon.thumbnail;
+  
+  // Perbarui config chromaKey jika tipenya VIDEO
+  let finalConfig = existingTwibbon.config as any;
+  if (type === "VIDEO") {
+    finalConfig = {
+      ...finalConfig,
+      overlayType: type,
+      chromaKey: {
+        color: chromaColor || "#00FF00",
+        similarity: 0.1,
+        smoothness: 0.08
+      }
+    };
+  } else {
+    finalConfig = {
+      ...finalConfig,
+      overlayType: type,
+      chromaKey: null
+    };
+  }
 
-  await prisma.twibbon.update({
-    where: { id: parseInt(id) },
-    data: {
-      title,
-      slug,
-      description,
-      type,
-      overlayFile: finalLayerUrl,
-      thumbnail: finalThumbnailUrl,
-      isActive,
+  try {
+    await prisma.twibbon.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        slug,
+        description,
+        type,
+        overlayFile: finalLayerUrl,
+        thumbnail: finalThumbnailUrl,
+        isActive,
+        config: finalConfig,
+      }
+    });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      throw new Error("Gagal menyimpan: Slug (URL) sudah dipakai, mohon ganti dengan nama lain.");
     }
-  });
+    throw error;
+  }
 
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");

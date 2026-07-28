@@ -134,7 +134,17 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         }
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
-            renderChromaKey(video, canvas);
+            const raw = twibbon.config?.chromaKey?.color;
+            let chromaColor = "#00FF00";
+            if (Array.isArray(raw)) {
+              const r = Math.round(raw[0] * 255).toString(16).padStart(2, '0');
+              const g = Math.round(raw[1] * 255).toString(16).padStart(2, '0');
+              const b = Math.round(raw[2] * 255).toString(16).padStart(2, '0');
+              chromaColor = `#${r}${g}${b}`;
+            } else if (typeof raw === 'string' && raw.startsWith('#')) {
+              chromaColor = raw;
+            }
+            renderChromaKey(video, canvas, undefined, undefined, chromaColor);
           } catch (e) {
             console.error("Chroma key render error:", e);
           }
@@ -260,12 +270,22 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         // Kompositing per frame: Full GPU via WebGL single-pass shader
         const processFrame = (mediaTime: number) => {
           // Render video & foto user bersamaan di GPU
+          const raw = twibbon.config?.chromaKey?.color;
+          let chromaColor = "#00FF00";
+          if (Array.isArray(raw)) {
+            const r = Math.round(raw[0] * 255).toString(16).padStart(2, '0');
+            const g = Math.round(raw[1] * 255).toString(16).padStart(2, '0');
+            const b = Math.round(raw[2] * 255).toString(16).padStart(2, '0');
+            chromaColor = `#${r}${g}${b}`;
+          } else if (typeof raw === 'string' && raw.startsWith('#')) {
+            chromaColor = raw;
+          }
           renderGL(videoElement, chromaCanvas, userImg, {
             x: croppedAreaPixels.x,
             y: croppedAreaPixels.y,
             w: croppedAreaPixels.width,
             h: croppedAreaPixels.height
-          });
+          }, chromaColor);
 
           // Beritahu Canvas untuk mengirim frame yang *baru saja selesai digambar* ke MediaRecorder
           if (supportsManualCapture) {

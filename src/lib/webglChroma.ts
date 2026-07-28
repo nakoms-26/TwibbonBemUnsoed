@@ -26,25 +26,34 @@ const FRAGMENT_SHADER = `
   uniform vec4 u_crop;
   uniform bool u_hasImage;
   
+  uniform vec3 u_keyColor;
+  uniform float u_similarity;
+  uniform float u_smoothness;
+  
   void main() {
     vec4 vidColor = texture2D(u_video, v_texCoord);
-    float r = vidColor.r * 255.0;
-    float g = vidColor.g * 255.0;
-    float b = vidColor.b * 255.0;
     
-    // Chroma keying khusus untuk warna hijau murni (RGB 0, 255, 0 / #00FF00)
-    if (g > 150.0 && r < 80.0 && b < 80.0) {
-      if (u_hasImage) {
-        vec2 imgUV = vec2(
-          u_crop.x + v_texCoord.x * u_crop.z,
-          u_crop.y + v_texCoord.y * u_crop.w
-        );
-        gl_FragColor = texture2D(u_image, imgUV);
-      } else {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-      }
+    // Menggunakan ruang warna YCbCr untuk chroma key yang lebih akurat (mengabaikan perbedaan cahaya/shadow)
+    float Cb1 = -0.1687 * vidColor.r - 0.3313 * vidColor.g + 0.5 * vidColor.b + 0.5;
+    float Cr1 = 0.5 * vidColor.r - 0.4187 * vidColor.g - 0.0813 * vidColor.b + 0.5;
+    
+    float Cb2 = -0.1687 * u_keyColor.r - 0.3313 * u_keyColor.g + 0.5 * u_keyColor.b + 0.5;
+    float Cr2 = 0.5 * u_keyColor.r - 0.4187 * u_keyColor.g - 0.0813 * u_keyColor.b + 0.5;
+    
+    float dist = distance(vec2(Cb1, Cr1), vec2(Cb2, Cr2));
+    float alpha = smoothstep(u_similarity, u_similarity + u_smoothness, dist);
+    
+    if (u_hasImage) {
+      vec2 imgUV = vec2(
+        u_crop.x + v_texCoord.x * u_crop.z,
+        u_crop.y + v_texCoord.y * u_crop.w
+      );
+      vec4 imgColor = texture2D(u_image, imgUV);
+      // Blend video over image
+      vec3 finalColor = mix(imgColor.rgb, vidColor.rgb, alpha);
+      gl_FragColor = vec4(finalColor, 1.0);
     } else {
-      gl_FragColor = vidColor;
+      gl_FragColor = vec4(vidColor.rgb, alpha);
     }
   }
 `;
@@ -119,11 +128,22 @@ export function initWebGL(canvas: HTMLCanvasElement) {
   return gl;
 }
 
+// Helper to convert hex to normalized RGB
+function hexToRgb(hex: string): [number, number, number] {
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length !== 6) return [0, 1, 0]; // Default green
+  const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
+  const g = parseInt(cleanHex.substring(2, 4), 16) / 255;
+  const b = parseInt(cleanHex.substring(4, 6), 16) / 255;
+  return [r, g, b];
+}
+
 export function renderChromaKey(
   video: HTMLVideoElement, 
   canvas: HTMLCanvasElement,
   userImg?: HTMLImageElement,
-  crop?: { x: number, y: number, w: number, h: number }
+  crop?: { x: number, y: number, w: number, h: number },
+  chromaColorHex: string = "#00FF00"
 ) {
   if (!glContext || !shaderProgram || glContext.canvas !== canvas) {
     initWebGL(canvas);
@@ -145,6 +165,12 @@ export function renderChromaKey(
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
   gl.uniform1i(gl.getUniformLocation(shaderProgram!, "u_video"), 0);
 
+  // Set chroma key params
+  const [r, g, b] = hexToRgb(chromaColorHex);
+  gl.uniform3f(gl.getUniformLocation(shaderProgram!, "u_keyColor"), r, g, b);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram!, "u_similarity"), 0.15); // Adjust threshold as needed
+  gl.uniform1f(gl.getUniformLocation(shaderProgram!, "u_smoothness"), 0.1);
+
   // Bind image to texture unit 1 (if provided)
   const uHasImage = gl.getUniformLocation(shaderProgram!, "u_hasImage");
   if (userImg && crop) {
@@ -152,14 +178,12 @@ export function renderChromaKey(
     
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, imageTexture);
-    // Hanya upload ke GPU jika object image baru, menghemat bandwidth CPU->GPU
     if (lastUserImg !== userImg) {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, userImg);
       lastUserImg = userImg;
     }
     gl.uniform1i(gl.getUniformLocation(shaderProgram!, "u_image"), 1);
 
-    // Kirim UV crop transform ke shader
     const cropLocation = gl.getUniformLocation(shaderProgram!, "u_crop");
     gl.uniform4f(
       cropLocation, 

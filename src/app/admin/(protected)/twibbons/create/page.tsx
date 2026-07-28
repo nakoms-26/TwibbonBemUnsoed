@@ -9,6 +9,7 @@ export default function CreateTwibbonPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
   const [type, setType] = useState<"IMAGE" | "VIDEO">("IMAGE");
+  const [chromaColor, setChromaColor] = useState<string>("#00FF00");
   const [uploadProgress, setUploadProgress] = useState<{ percentage: number; loaded: string; total: string; fileName: string } | null>(null);
 
   const formatBytes = (bytes: number) => {
@@ -100,6 +101,9 @@ export default function CreateTwibbonPage() {
       if (formData.get("description")) finalFormData.append("description", formData.get("description") as string);
       finalFormData.append("type", formType);
       finalFormData.append("isActive", formData.get("isActive") === "on" ? "true" : "false");
+      if (formType === "VIDEO") {
+        finalFormData.append("chromaColor", chromaColor);
+      }
       finalFormData.append("layerUrl", layerUrl);
       finalFormData.append("thumbnailUrl", thumbnailUrl);
 
@@ -311,6 +315,49 @@ export default function CreateTwibbonPage() {
                 </label>
               </div>
             </div>
+
+            {type === "VIDEO" && (
+              <div className="pt-6">
+                <label className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#2f2f67" }}>
+                  Warna Transparan (Chroma Key)
+                </label>
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="color"
+                    value={chromaColor}
+                    onChange={(e) => setChromaColor(e.target.value)}
+                    className="w-14 h-14 rounded-xl cursor-pointer border-0 bg-transparent p-0"
+                  />
+                  <input
+                    type="text"
+                    value={chromaColor.toUpperCase()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val.startsWith("#") && val.length <= 7) setChromaColor(val);
+                    }}
+                    placeholder="#00FF00"
+                    className="appearance-none block w-full md:w-64 px-5 py-3.5 border rounded-xl focus:outline-none sm:text-sm font-semibold transition-all shadow-sm uppercase"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.8)",
+                      borderColor: "rgba(79, 77, 154, 0.2)",
+                      color: "#2f2f67",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setChromaColor("#00FF00")}
+                    className="px-4 py-3.5 rounded-xl text-xs font-bold border transition-all"
+                    style={{ background: "rgba(0,255,0,0.1)", borderColor: "rgba(0,255,0,0.3)", color: "green" }}
+                  >
+                    Reset Hijau
+                  </button>
+                </div>
+                <p className="mt-3 text-xs font-semibold" style={{ color: "#4f4d9a", opacity: 0.8 }}>
+                  Pilih warna background pada video yang akan dihapus (dijadikan transparan) oleh sistem web. 
+                  Sangat disarankan menggunakan warna Hijau Murni (#00FF00) atau Biru Murni (#0000FF).
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-8" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
