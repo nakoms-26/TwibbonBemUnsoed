@@ -14,7 +14,7 @@ export default async function LatestTwibbonsSection() {
   const twibbons = await prisma.twibbon.findMany({
     where: { isActive: true },
     orderBy: { createdAt: "desc" },
-    take: 6,
+    take: 4,
   });
 
   if (twibbons.length === 0) return null;
@@ -38,13 +38,13 @@ export default async function LatestTwibbonsSection() {
               className={`text-2xl md:text-3xl uppercase tracking-tight ${archivoBlack.className}`}
               style={{ color: "#1e0a4a" }}
             >
-              Kampanye Populer
+              Twibbon Terbaru
             </h2>
             <p
               className="text-xs font-bold mt-1"
               style={{ color: "#2d1b69", opacity: 0.8 }}
             >
-              Jelajahi twibbon dan video pilihan
+              Jelajahi twibbon terbaru
             </p>
           </div>
           <Link
