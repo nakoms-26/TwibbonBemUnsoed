@@ -41,6 +41,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
   const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
 
+  // Audio Context refs to bypass mobile audio restrictions and prevent double-creation
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
   const [overlayDims, setOverlayDims] = useState<{
     width: number;
     height: number;
@@ -191,6 +195,29 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
   const generateTwibbon = async () => {
     if (!imageSrc || !croppedAreaPixels || !overlayDims) return;
+
+    // === FIX IOS AUDIO SILENCE: Initialize AudioContext synchronously ===
+    if (isVideo && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx && !audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtx({ sampleRate: 44100 });
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      if (videoRef.current) {
+        videoRef.current.muted = false; // Unmute synchronously
+        if (!audioSourceRef.current && audioCtxRef.current) {
+          try {
+            audioSourceRef.current = audioCtxRef.current.createMediaElementSource(videoRef.current);
+          } catch (e) {
+            console.warn("Failed to create media element source:", e);
+          }
+        }
+      }
+    }
+    // =====================================================================
+
     setIsProcessing(true);
     isProcessingRef.current = true;
     setRenderProgress(0);
@@ -290,56 +317,57 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
           // Audio Encoder (AAC) — hanya jika video punya audio
           let audioEncoder: AudioEncoder | null = null;
-          let audioContext: AudioContext | null = null;
-          let audioSource: MediaElementAudioSourceNode | null = null;
           let scriptProcessor: ScriptProcessorNode | null = null;
           let audioTimestamp = 0;
 
           let isRecordingStarted = false;
 
           try {
-            audioContext = new AudioContext({ sampleRate: 44100 });
+            const audioContext = audioCtxRef.current;
+            const audioSource = audioSourceRef.current;
             videoElement.muted = false;
-            audioSource = audioContext.createMediaElementSource(videoElement);
-            scriptProcessor = audioContext.createScriptProcessor(4096, 2, 2);
+            
+            if (audioContext && audioSource) {
+              scriptProcessor = audioContext.createScriptProcessor(4096, 2, 2);
 
-            audioEncoder = new AudioEncoder({
-              output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-              error: () => {}, // audio error tidak fatal
-            });
-            audioEncoder.configure({
-              codec: 'mp4a.40.2', // AAC-LC
-              sampleRate: 44100,
-              numberOfChannels: 2,
-              bitrate: 128_000,
-            });
+              audioEncoder = new AudioEncoder({
+                output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                error: () => {}, // audio error tidak fatal
+              });
+              audioEncoder.configure({
+                codec: 'mp4a.40.2', // AAC-LC
+                sampleRate: 44100,
+                numberOfChannels: 2,
+                bitrate: 128_000,
+              });
 
-            scriptProcessor.onaudioprocess = (e) => {
-              if (!isRecordingStarted) return;
-              if (audioEncoder && audioEncoder.state === 'configured') {
-                const left = e.inputBuffer.getChannelData(0);
-                const right = e.inputBuffer.getChannelData(1);
-                const merged = new Float32Array(left.length * 2);
-                for (let i = 0; i < left.length; i++) {
-                  merged[i * 2] = left[i];
-                  merged[i * 2 + 1] = right[i];
+              scriptProcessor.onaudioprocess = (e) => {
+                if (!isRecordingStarted) return;
+                if (audioEncoder && audioEncoder.state === 'configured') {
+                  const left = e.inputBuffer.getChannelData(0);
+                  const right = e.inputBuffer.getChannelData(1);
+                  const merged = new Float32Array(left.length * 2);
+                  for (let i = 0; i < left.length; i++) {
+                    merged[i * 2] = left[i];
+                    merged[i * 2 + 1] = right[i];
+                  }
+                  const audioData = new AudioData({
+                    format: 'f32',
+                    sampleRate: 44100,
+                    numberOfFrames: left.length,
+                    numberOfChannels: 2,
+                    timestamp: audioTimestamp,
+                    data: merged,
+                  });
+                  audioTimestamp += (left.length / 44100) * 1_000_000;
+                  audioEncoder.encode(audioData);
+                  audioData.close();
                 }
-                const audioData = new AudioData({
-                  format: 'f32',
-                  sampleRate: 44100,
-                  numberOfFrames: left.length,
-                  numberOfChannels: 2,
-                  timestamp: audioTimestamp,
-                  data: merged,
-                });
-                audioTimestamp += (left.length / 44100) * 1_000_000;
-                audioEncoder.encode(audioData);
-                audioData.close();
-              }
-            };
+              };
 
-            audioSource.connect(scriptProcessor);
-            scriptProcessor.connect(audioContext.destination);
+              audioSource.connect(scriptProcessor);
+              scriptProcessor.connect(audioContext.destination);
+            }
           } catch (e) {
             console.warn('Audio encoder tidak tersedia, lanjut tanpa audio:', e);
           }
@@ -394,9 +422,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 muxer.finalize();
 
                 // Cleanup audio graph
-                scriptProcessor?.disconnect();
-                audioSource?.disconnect();
-                await audioContext?.close();
+                if (scriptProcessor) {
+                  scriptProcessor.disconnect();
+                }
+                // Do NOT close audioCtxRef or disconnect audioSourceRef, as they can be reused!
 
                 const { buffer } = target;
                 const blob = new Blob([buffer], { type: 'video/mp4' });
