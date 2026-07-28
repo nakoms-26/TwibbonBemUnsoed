@@ -89,7 +89,7 @@ export default async function PublicTwibbonsCatalogPage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 lg:gap-8">
               {twibbons.map((twibbon) => (
-                <TwibbonCard key={twibbon.id} twibbon={twibbon} />
+                <TwibbonCard key={twibbon.id} twibbon={twibbon} compactOnMobile={true} />
               ))}
             </div>
           )}
