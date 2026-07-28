@@ -30,6 +30,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Record<string, number> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStage, setRenderStage] = useState("");
@@ -117,7 +118,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
     const renderFrame = (timestamp: number) => {
       // Jangan render preview saat sedang recording (hemat CPU/GPU)
-      if (isProcessing) {
+      if (isProcessingRef.current) {
         animationId = requestAnimationFrame(renderFrame);
         return;
       }
@@ -191,8 +192,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const generateTwibbon = async () => {
     if (!imageSrc || !croppedAreaPixels || !overlayDims) return;
     setIsProcessing(true);
+    isProcessingRef.current = true;
     setRenderProgress(0);
-    setRenderStage("");
+    setRenderStage("Menyiapkan kanvas...");
 
     try {
       const userImg = await createImage(imageSrc);
@@ -279,7 +281,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             error: (e) => { throw e; },
           });
           videoEncoder.configure({
-            codec: 'avc1.42001f', // H.264 Baseline
+            codec: 'avc1.4d002a', // H.264 Main Profile, Level 4.2 (supports up to 1080p and higher)
             width: encodeWidth,
             height: encodeHeight,
             bitrate: 4_000_000,
@@ -533,6 +535,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
       alert("Terjadi kesalahan saat memproses twibbon: " + message);
     } finally {
       setIsProcessing(false);
+      isProcessingRef.current = false;
       setRenderProgress(0);
       setRenderStage("");
     }
