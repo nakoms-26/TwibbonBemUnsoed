@@ -240,152 +240,292 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         destroyWebGL();
         initGL(chromaCanvas);
 
-        // Deteksi MIME type terbaik yang didukung browser (dengan audio)
-        const mimePreference = [
-          'video/webm;codecs=vp9,opus',
-          'video/webm;codecs=vp8,opus',
-          'video/webm;codecs=h264,opus',
-          'video/webm',
-          'video/mp4',
-        ];
-        const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
-        if (!selectedMime) throw new Error('Browser tidak mendukung MediaRecorder. Gunakan Chrome atau Safari terbaru.');
-
-        // Setup recorder dari WebGL canvas stream langsung (tanpa 2D canvas readback!)
-        // Cek apakah browser mendukung manual capture (requestFrame)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const supportsManualCapture = typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)?.requestFrame === 'function';
-        
-        // Gunakan manual capture (0) jika didukung, atau fallback ke auto 30fps (30)
-        const canvasStream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
-        const [videoTrack] = canvasStream.getVideoTracks();
-
-        // Tambahkan audio track dari video overlay agar suara ikut terekam
-        const combinedStream = new MediaStream([videoTrack]);
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const audioStream = (videoElement as any).captureStream
-            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (videoElement as any).captureStream()
-            : null;
-          if (audioStream) {
-            audioStream.getAudioTracks().forEach((track: MediaStreamTrack) => combinedStream.addTrack(track));
-          }
-        } catch (e) {
-          console.warn('Tidak bisa mengambil audio track dari video:', e);
-        }
-        
-        const recorder = new MediaRecorder(combinedStream, {
-          mimeType: selectedMime,
-          videoBitsPerSecond: 3_000_000,
-        });
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        // Cek apakah browser mendukung WebCodecs API (VideoEncoder)
+        const supportsWebCodecs = typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined';
 
         const duration = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.duration : 0;
         setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
 
-        // Kompositing per frame: Full GPU via WebGL single-pass shader
-        const processFrame = (mediaTime: number) => {
-          // Render video & foto user bersamaan di GPU
-          const raw = twibbon.config?.chromaKey?.color;
-          let chromaColor = "#00FF00";
-          if (Array.isArray(raw)) {
-            const r = Math.round(raw[0] * 255).toString(16).padStart(2, '0');
-            const g = Math.round(raw[1] * 255).toString(16).padStart(2, '0');
-            const b = Math.round(raw[2] * 255).toString(16).padStart(2, '0');
-            chromaColor = `#${r}${g}${b}`;
-          } else if (typeof raw === 'string' && raw.startsWith('#')) {
-            chromaColor = raw;
+        // Resolve chroma color sekali saja di luar loop frame
+        const rawColor = twibbon.config?.chromaKey?.color;
+        let chromaColor = '#00FF00';
+        if (Array.isArray(rawColor)) {
+          const r = Math.round(rawColor[0] * 255).toString(16).padStart(2, '0');
+          const g = Math.round(rawColor[1] * 255).toString(16).padStart(2, '0');
+          const b = Math.round(rawColor[2] * 255).toString(16).padStart(2, '0');
+          chromaColor = `#${r}${g}${b}`;
+        } else if (typeof rawColor === 'string' && rawColor.startsWith('#')) {
+          chromaColor = rawColor;
+        }
+
+        if (supportsWebCodecs) {
+          // ══════════════════════════════════════════════════════════
+          // PATH A: VideoEncoder + mp4-muxer → output .mp4 asli
+          // ══════════════════════════════════════════════════════════
+          const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
+
+          const target = new ArrayBufferTarget();
+          const muxer = new Muxer({
+            target,
+            video: { codec: 'avc', width: encodeWidth, height: encodeHeight },
+            audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
+            fastStart: 'in-memory',
+          });
+
+          // Video Encoder (H.264)
+          let videoEncoderClosed = false;
+          const videoEncoder = new VideoEncoder({
+            output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+            error: (e) => { throw e; },
+          });
+          videoEncoder.configure({
+            codec: 'avc1.42001f', // H.264 Baseline
+            width: encodeWidth,
+            height: encodeHeight,
+            bitrate: 4_000_000,
+            framerate: 30,
+            latencyMode: 'quality',
+          });
+
+          // Audio Encoder (AAC) — hanya jika video punya audio
+          let audioEncoder: AudioEncoder | null = null;
+          let audioContext: AudioContext | null = null;
+          let audioSource: MediaElementAudioSourceNode | null = null;
+          let scriptProcessor: ScriptProcessorNode | null = null;
+          let audioTimestamp = 0;
+
+          try {
+            audioContext = new AudioContext({ sampleRate: 44100 });
+            videoElement.muted = false;
+            audioSource = audioContext.createMediaElementSource(videoElement);
+            scriptProcessor = audioContext.createScriptProcessor(4096, 2, 2);
+
+            audioEncoder = new AudioEncoder({
+              output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+              error: () => {}, // audio error tidak fatal
+            });
+            audioEncoder.configure({
+              codec: 'mp4a.40.2', // AAC-LC
+              sampleRate: 44100,
+              numberOfChannels: 2,
+              bitrate: 128_000,
+            });
+
+            scriptProcessor.onaudioprocess = (e) => {
+              if (audioEncoder && audioEncoder.state === 'configured') {
+                const left = e.inputBuffer.getChannelData(0);
+                const right = e.inputBuffer.getChannelData(1);
+                const merged = new Float32Array(left.length * 2);
+                for (let i = 0; i < left.length; i++) {
+                  merged[i * 2] = left[i];
+                  merged[i * 2 + 1] = right[i];
+                }
+                const audioData = new AudioData({
+                  format: 'f32',
+                  sampleRate: 44100,
+                  numberOfFrames: left.length,
+                  numberOfChannels: 2,
+                  timestamp: audioTimestamp,
+                  data: merged,
+                });
+                audioTimestamp += (left.length / 44100) * 1_000_000;
+                audioEncoder.encode(audioData);
+                audioData.close();
+              }
+            };
+
+            audioSource.connect(scriptProcessor);
+            scriptProcessor.connect(audioContext.destination);
+          } catch (e) {
+            console.warn('Audio encoder tidak tersedia, lanjut tanpa audio:', e);
           }
-          renderGL(videoElement, chromaCanvas, userImg, {
-            x: croppedAreaPixels.x,
-            y: croppedAreaPixels.y,
-            w: croppedAreaPixels.width,
-            h: croppedAreaPixels.height
-          }, chromaColor);
 
-          // Beritahu Canvas untuk mengirim frame yang *baru saja selesai digambar* ke MediaRecorder
-          if (supportsManualCapture) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (videoTrack as any).requestFrame();
-          }
+          // Frame counter untuk timestamp
+          let frameCount = 0;
+          const FPS = 30;
+          const FRAME_DURATION_US = Math.round(1_000_000 / FPS); // microseconds per frame
 
-          if (duration > 0) {
-            setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
-            setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
-          }
-        };
+          const processFrame = (mediaTime: number) => {
+            // Render WebGL chroma key ke canvas
+            renderGL(videoElement, chromaCanvas, userImg, {
+              x: croppedAreaPixels.x,
+              y: croppedAreaPixels.y,
+              w: croppedAreaPixels.width,
+              h: croppedAreaPixels.height,
+            }, chromaColor);
 
-        videoElement.currentTime = 0; videoElement.loop = false;
-        videoElement.muted = false; // Pastikan audio aktif saat direkam
-        const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+            // Ambil frame dari canvas dan encode ke H.264
+            const videoFrame = new VideoFrame(chromaCanvas, {
+              timestamp: frameCount * FRAME_DURATION_US,
+              duration: FRAME_DURATION_US,
+            });
+            const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
+            videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+            videoFrame.close();
+            frameCount++;
 
-        await new Promise<void>((resolve, reject) => {
-          recorder.onstop = () => {
-            try {
-              const blob = new Blob(chunks, { type: selectedMime });
-              setResultUrl(URL.createObjectURL(blob));
-              setVideoMimeType(selectedMime);
-              setRenderProgress(100); setRenderStage('Selesai!');
-              resolve();
-            } catch (e) { reject(e); }
+            if (duration > 0) {
+              setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
+              setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+            }
           };
 
-          if (hasRVFC) {
-            // Primary: RVFC — tiap frame baru dari video, real-time
-            let lastProcessed = 0;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const captureFrame = (_: number, meta: any) => {
-              // Throttle ke 30fps (buang frame ekstra jika video > 30fps)
-              if (meta.mediaTime - lastProcessed < 1 / 30) {
+          videoElement.currentTime = 0;
+          videoElement.loop = false;
+          const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+          await new Promise<void>((resolve, reject) => {
+            const finish = async () => {
+              try {
+                // Flush semua encoder
+                await videoEncoder.flush();
+                if (audioEncoder) await audioEncoder.flush();
+                muxer.finalize();
+
+                // Cleanup audio graph
+                scriptProcessor?.disconnect();
+                audioSource?.disconnect();
+                await audioContext?.close();
+
+                const { buffer } = target;
+                const blob = new Blob([buffer], { type: 'video/mp4' });
+                setResultUrl(URL.createObjectURL(blob));
+                setVideoMimeType('video/mp4');
+                setRenderProgress(100);
+                setRenderStage('Selesai!');
+                resolve();
+              } catch (e) { reject(e); }
+            };
+
+            if (hasRVFC) {
+              let lastProcessed = 0;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const captureFrame = (_: number, meta: any) => {
+                if (meta.mediaTime - lastProcessed < 1 / FPS) {
+                  if (!videoElement.ended) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (videoElement as any).requestVideoFrameCallback(captureFrame);
+                  }
+                  return;
+                }
+                lastProcessed = meta.mediaTime;
+                try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
                 if (!videoElement.ended) {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   (videoElement as any).requestVideoFrameCallback(captureFrame);
                 }
-                return;
-              }
-              lastProcessed = meta.mediaTime;
-
-              try { processFrame(meta.mediaTime); } catch (e) { recorder.stop(); return reject(e); }
-              if (!videoElement.ended) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (videoElement as any).requestVideoFrameCallback(captureFrame);
-              }
-            };
-            videoElement.onended = () => recorder.stop();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (videoElement as any).requestVideoFrameCallback(captureFrame);
-          } else {
-            // Fallback: RAF loop (Firefox & browser tanpa RVFC)
-            let rafId: number;
-            let lastProcessed = 0;
-            const rafLoop = () => {
-              if (videoElement.ended) {
-                cancelAnimationFrame(rafId); recorder.stop(); return;
-              }
-              const currentTime = videoElement.currentTime;
-              // Throttle ke 30fps
-              if (currentTime - lastProcessed >= 1 / 30) {
-                lastProcessed = currentTime;
-                try { processFrame(currentTime); } catch (e) {
-                  cancelAnimationFrame(rafId); recorder.stop(); reject(e); return;
+              };
+              videoElement.onended = () => finish();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (videoElement as any).requestVideoFrameCallback(captureFrame);
+            } else {
+              // Fallback RAF untuk Firefox
+              let rafId: number;
+              let lastProcessed = 0;
+              const rafLoop = () => {
+                if (videoElement.ended) { cancelAnimationFrame(rafId); finish(); return; }
+                const t = videoElement.currentTime;
+                if (t - lastProcessed >= 1 / FPS) {
+                  lastProcessed = t;
+                  try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
                 }
-              }
+                rafId = requestAnimationFrame(rafLoop);
+              };
               rafId = requestAnimationFrame(rafLoop);
-            };
-            rafId = requestAnimationFrame(rafLoop);
-          }
+            }
 
-          recorder.start(200); // kumpulkan chunk tiap 200ms
-          videoElement.play().catch((e) => { recorder.stop(); reject(e); });
-        });
+            videoElement.play().catch(reject);
+          });
+
+        } else {
+          // ══════════════════════════════════════════════════════════
+          // PATH B: Fallback MediaRecorder → output .webm (Firefox)
+          // ══════════════════════════════════════════════════════════
+          const mimePreference = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+          const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+          if (!selectedMime) throw new Error('Browser tidak mendukung perekaman video.');
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const supportsManualCapture = typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)?.requestFrame === 'function';
+          const canvasStream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
+          const [videoTrack] = canvasStream.getVideoTracks();
+          const combinedStream = new MediaStream([videoTrack]);
+
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const audioStream = (videoElement as any).captureStream?.();
+            if (audioStream) audioStream.getAudioTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
+          } catch (e) { console.warn('Audio tidak tersedia:', e); }
+
+          const recorder = new MediaRecorder(combinedStream, { mimeType: selectedMime, videoBitsPerSecond: 3_000_000 });
+          const chunks: Blob[] = [];
+          recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+          const processFrame = (mediaTime: number) => {
+            renderGL(videoElement, chromaCanvas, userImg, {
+              x: croppedAreaPixels.x, y: croppedAreaPixels.y,
+              w: croppedAreaPixels.width, h: croppedAreaPixels.height,
+            }, chromaColor);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if (supportsManualCapture) (videoTrack as any).requestFrame();
+            if (duration > 0) {
+              setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
+              setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+            }
+          };
+
+          videoElement.currentTime = 0; videoElement.loop = false; videoElement.muted = false;
+          const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+          await new Promise<void>((resolve, reject) => {
+            recorder.onstop = () => {
+              try {
+                const blob = new Blob(chunks, { type: selectedMime });
+                setResultUrl(URL.createObjectURL(blob));
+                setVideoMimeType(selectedMime);
+                setRenderProgress(100); setRenderStage('Selesai!');
+                resolve();
+              } catch (e) { reject(e); }
+            };
+
+            if (hasRVFC) {
+              let lastProcessed = 0;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const captureFrame = (_: number, meta: any) => {
+                if (meta.mediaTime - lastProcessed < 1 / 30) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if (!videoElement.ended) (videoElement as any).requestVideoFrameCallback(captureFrame);
+                  return;
+                }
+                lastProcessed = meta.mediaTime;
+                try { processFrame(meta.mediaTime); } catch (e) { recorder.stop(); return reject(e); }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if (!videoElement.ended) (videoElement as any).requestVideoFrameCallback(captureFrame);
+              };
+              videoElement.onended = () => recorder.stop();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (videoElement as any).requestVideoFrameCallback(captureFrame);
+            } else {
+              let rafId: number;
+              let lastProcessed = 0;
+              const rafLoop = () => {
+                if (videoElement.ended) { cancelAnimationFrame(rafId); recorder.stop(); return; }
+                const t = videoElement.currentTime;
+                if (t - lastProcessed >= 1 / 30) { lastProcessed = t; try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); recorder.stop(); reject(e); return; } }
+                rafId = requestAnimationFrame(rafLoop);
+              };
+              rafId = requestAnimationFrame(rafLoop);
+            }
+
+            recorder.start(200);
+            videoElement.play().catch((e) => { recorder.stop(); reject(e); });
+          });
+        }
 
         videoElement.loop = true; videoElement.onended = null;
         chromaCanvas.width = 1;
-        
-        // Hapus context WebGL recording, bersihkan memori GPU
         destroyWebGL();
+
       }
     } catch (e: unknown) {
       console.error(e);
