@@ -36,6 +36,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   // Mime type yang dipakai saat recording — menentukan ekstensi file download
   const [videoMimeType, setVideoMimeType] = useState<string>('video/mp4');
   const isVideo = twibbon.type === "VIDEO";
+  // State untuk loading progress video overlay
+  const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
+  const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
 
   const [overlayDims, setOverlayDims] = useState<{
     width: number;
@@ -441,94 +444,125 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               borderColor: "rgba(79, 77, 154, 0.25)",
             }}
           >
-            {imageSrc ? (
-              <>
-                <div className="absolute inset-0 z-0">
-                  {containerSize && (
-                    <Cropper
-                      image={imageSrc}
-                      crop={crop}
-                      zoom={zoom}
-                      cropSize={containerSize}
-                      onCropChange={setCrop}
-                      onCropComplete={onCropComplete}
-                      onZoomChange={setZoom}
-                      showGrid={false}
-                      restrictPosition={false}
-                      style={{
-                        cropAreaStyle: { border: 0, boxShadow: "none" },
-                        containerStyle: { backgroundColor: "#1e1b4b" },
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="absolute inset-0 pointer-events-none z-10">
-                  {isVideo ? (
-                    <>
-                      <video
-                        ref={videoRef}
-                        src={twibbon.overlayFile}
-                        crossOrigin="anonymous"
-                        muted
-                        loop
-                        autoPlay
-                        playsInline
-                        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-                        onLoadedMetadata={(e) => {
-                          e.currentTarget.play().catch(() => {});
-                          setOverlayDims({
-                            width: e.currentTarget.videoWidth,
-                            height: e.currentTarget.videoHeight,
-                          });
-                        }}
-                      />
-                      <canvas
-                        ref={previewCanvasRef}
-                        className="w-full h-full object-contain"
-                      />
-                    </>
-                  ) : (
-                    <Image
-                      src={twibbon.overlayFile}
-                      alt="Overlay"
-                      fill
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                      className="object-contain opacity-100"
-                    />
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {isVideo ? (
+            {/* === LAYER 0: Cropper foto user (hanya saat imageSrc ada) === */}
+            {imageSrc && (
+              <div className="absolute inset-0 z-0">
+                {containerSize && (
+                  <Cropper
+                    image={imageSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    cropSize={containerSize}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                    showGrid={false}
+                    restrictPosition={false}
+                    style={{
+                      cropAreaStyle: { border: 0, boxShadow: "none" },
+                      containerStyle: { backgroundColor: "#1e1b4b" },
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* === LAYER 1: Overlay (video/gambar) — SELALU ada di DOM, visibilitas diatur CSS === */}
+            <div className={`absolute inset-0 pointer-events-none ${imageSrc ? "z-10" : "z-10"}`}>
+              {isVideo ? (
+                <>
+                  {/* Satu video element tunggal — tidak pernah di-unmount agar tidak reload */}
                   <video
+                    ref={videoRef}
                     src={twibbon.overlayFile}
+                    crossOrigin="anonymous"
                     muted
                     loop
                     autoPlay
                     playsInline
-                    className="object-contain w-full h-full z-10"
+                    preload="auto"
+                    // Saat imageSrc ada: sembunyikan (dipakai WebGL via ref), tampilkan canvas
+                    // Saat belum ada foto: tampilkan sebagai preview full
+                    style={imageSrc
+                      ? { position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }
+                      : { width: "100%", height: "100%", objectFit: "contain" }
+                    }
                     onLoadedMetadata={(e) => {
+                      e.currentTarget.play().catch(() => {});
                       setOverlayDims({
                         width: e.currentTarget.videoWidth,
                         height: e.currentTarget.videoHeight,
                       });
                     }}
+                    onProgress={(e) => {
+                      const vid = e.currentTarget;
+                      if (vid.buffered.length > 0 && vid.duration > 0) {
+                        const pct = Math.round((vid.buffered.end(vid.buffered.length - 1) / vid.duration) * 100);
+                        setVideoLoadProgress(Math.min(pct, 99));
+                      }
+                    }}
+                    onCanPlayThrough={() => {
+                      setVideoLoadProgress(100);
+                      setVideoReady(true);
+                    }}
                   />
-                ) : (
-                  <Image
-                    src={twibbon.overlayFile}
-                    alt="Preview Overlay"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-contain z-10"
+                  {/* Canvas WebGL hanya terlihat saat imageSrc ada */}
+                  <canvas
+                    ref={previewCanvasRef}
+                    className="w-full h-full object-contain"
+                    style={{ display: imageSrc ? "block" : "none" }}
                   />
-                )}
+                </>
+              ) : (
+                // Image overlay: tetap pakai Next/Image, tidak ada masalah reload
+                <Image
+                  src={twibbon.overlayFile}
+                  alt="Overlay"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-contain opacity-100"
+                />
+              )}
+            </div>
 
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 flex flex-col items-center justify-center z-20 cursor-pointer group"
-                >
+            {/* === LAYER 2: Upload prompt / Loading indicator (hanya saat belum ada foto) === */}
+            {!imageSrc && (
+              <div
+                onClick={() => videoReady && fileInputRef.current?.click()}
+                className={`absolute inset-0 flex flex-col items-center justify-center z-20 group ${videoReady ? "cursor-pointer" : "cursor-default"}`}
+              >
+                {!videoReady ? (
+                  /* Loading ring */
+                  <div
+                    className="px-8 py-8 rounded-[2rem] shadow-xl text-center border"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.92)",
+                      backdropFilter: "blur(16px)",
+                      WebkitBackdropFilter: "blur(16px)",
+                      borderColor: "rgba(79, 77, 154, 0.2)",
+                    }}
+                  >
+                    <div className="relative w-20 h-20 mx-auto mb-4">
+                      <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+                        <circle cx="40" cy="40" r="32" fill="none" strokeWidth="6" stroke="rgba(79,77,154,0.12)" />
+                        <circle
+                          cx="40" cy="40" r="32" fill="none" strokeWidth="6"
+                          stroke="#4f4d9a"
+                          strokeLinecap="round"
+                          strokeDasharray={`${2 * Math.PI * 32}`}
+                          strokeDashoffset={`${2 * Math.PI * 32 * (1 - videoLoadProgress / 100)}`}
+                          style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-sm font-black tabular-nums" style={{ color: "#4f4d9a" }}>
+                        {videoLoadProgress}%
+                      </span>
+                    </div>
+                    <p className="font-extrabold text-sm uppercase tracking-wider" style={{ color: "#2f2f67" }}>Memuat Video...</p>
+                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.7 }}>Harap tunggu, video sedang dimuat</p>
+                  </div>
+                ) : (
+                  /* Upload prompt */
                   <div
                     className="px-8 py-6 rounded-[2rem] shadow-xl text-center border transition-all group-hover:scale-105"
                     style={{
@@ -538,25 +572,19 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       borderColor: "rgba(79, 77, 154, 0.2)",
                     }}
                   >
-                    <div
-                      className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12"
-                      style={{ background: "#2d1b69" }}
-                    >
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12" style={{ background: "#2d1b69" }}>
                       <Upload size={24} />
                     </div>
-                    <p className="font-extrabold text-base uppercase tracking-wider transition-colors" style={{ color: "#2f2f67" }}>
-                      Pilih Foto
-                    </p>
-                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>
-                      Klik area ini untuk mengunggah
-                    </p>
+                    <p className="font-extrabold text-base uppercase tracking-wider transition-colors" style={{ color: "#2f2f67" }}>Pilih Foto</p>
+                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>Klik area ini untuk mengunggah</p>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
+
 
       {/* Kanan: Controls */}
       <div
