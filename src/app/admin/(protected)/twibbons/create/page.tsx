@@ -3,34 +3,114 @@
 import { createTwibbon } from "@/app/actions/twibbonActions";
 import Link from "next/link";
 import { useState } from "react";
-import { createTwibbonSchema } from "@/lib/schemas";
+import { createTwibbonSchema, MAX_VIDEO_SIZE, MAX_IMAGE_SIZE } from "@/lib/schemas";
 
 export default function CreateTwibbonPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
   const [type, setType] = useState<"IMAGE" | "VIDEO">("IMAGE");
+  const [uploadProgress, setUploadProgress] = useState<{ percentage: number; loaded: string; total: string; fileName: string } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    const formData = new FormData(e.currentTarget);
-    const rawData = {
-      title: formData.get("title"),
-      slug: formData.get("slug"),
-      description: formData.get("description") || undefined,
-      type: formData.get("type"),
-      isActive: formData.get("isActive") === "on",
-      layerFile: formData.get("layerFile"),
-      thumbnailFile: formData.get("thumbnailFile"),
-    };
+  const formatBytes = (bytes: number) => {
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+  };
 
-    const validatedFields = createTwibbonSchema.safeParse(rawData);
-    if (!validatedFields.success) {
-      e.preventDefault();
-      setError(validatedFields.error.errors[0].message);
-      return;
-    }
+  const uploadFile = (file: File, appName: string, secret: string, apiUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", apiUrl, true);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress({
+            percentage: percentComplete,
+            loaded: formatBytes(e.loaded),
+            total: formatBytes(e.total),
+            fileName: file.name
+          });
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            if (res.success) resolve(res.url);
+            else reject(new Error(res.error || "Upload ditolak server"));
+          } catch (err) {
+            reject(new Error("Format response dari server tidak valid"));
+          }
+        } else {
+          reject(new Error(`Server error: ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Gagal menyambung ke server upload"));
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("app", appName);
+      fd.append("secret", secret);
+      xhr.send(fd);
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isSubmitting) return;
 
     setError("");
     setIsSubmitting(true);
+    setUploadProgress(null);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      
+      const layerFile = formData.get("layerFile") as File;
+      const thumbnailFile = formData.get("thumbnailFile") as File;
+      const formType = formData.get("type") as string;
+
+      // Validasi Ukuran File secara Manual sebelum upload
+      const maxLayerSize = formType === "VIDEO" ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      if (!layerFile || layerFile.size === 0) throw new Error("File layer wajib diupload");
+      if (layerFile.size > maxLayerSize) throw new Error(`Ukuran file layer maksimal ${formType === "VIDEO" ? "100MB" : "10MB"}`);
+      
+      if (!thumbnailFile || thumbnailFile.size === 0) throw new Error("Thumbnail wajib diupload");
+      if (thumbnailFile.size > MAX_IMAGE_SIZE) throw new Error("Ukuran thumbnail maksimal 10MB");
+
+      // Ambil kredensial upload dari server
+      setUploadProgress({ percentage: 0, loaded: "0 MB", total: "0 MB", fileName: "Menyiapkan server..." });
+      const credRes = await fetch("/api/admin/upload-credentials");
+      if (!credRes.ok) throw new Error("Gagal mendapatkan akses upload");
+      const creds = await credRes.json();
+
+      // Upload Layer
+      const layerUrl = await uploadFile(layerFile, "twibbon", creds.secret, creds.url);
+      
+      // Upload Thumbnail
+      const thumbnailUrl = await uploadFile(thumbnailFile, "twibbon", creds.secret, creds.url);
+
+      setUploadProgress({ percentage: 100, loaded: "Selesai", total: "Selesai", fileName: "Menyimpan ke database..." });
+
+      // Build data final untuk dikirim ke Server Action
+      const finalFormData = new FormData();
+      finalFormData.append("title", formData.get("title") as string);
+      finalFormData.append("slug", formData.get("slug") as string);
+      if (formData.get("description")) finalFormData.append("description", formData.get("description") as string);
+      finalFormData.append("type", formType);
+      finalFormData.append("isActive", formData.get("isActive") === "on" ? "true" : "false");
+      finalFormData.append("layerUrl", layerUrl);
+      finalFormData.append("thumbnailUrl", thumbnailUrl);
+
+      // Panggil Server Action
+      await createTwibbon(finalFormData);
+
+    } catch (err: any) {
+      setError(err.message || "Terjadi kesalahan yang tidak diketahui");
+      setIsSubmitting(false);
+      setUploadProgress(null);
+    }
   };
 
   return (
@@ -64,7 +144,7 @@ export default function CreateTwibbonPage() {
           boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
         }}
       >
-        <form action={createTwibbon} onSubmit={handleSubmit} className="p-8 md:p-12 space-y-10">
+        <form onSubmit={handleSubmit} className="p-8 md:p-12 space-y-10">
           {error && (
             <div
               className="p-4 rounded-xl text-xs font-bold border"
@@ -108,7 +188,7 @@ export default function CreateTwibbonPage() {
                     Slug (URL) <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="text"
+                     type="text"
                     id="slug"
                     name="slug"
                     required
@@ -239,7 +319,7 @@ export default function CreateTwibbonPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div
-                className="p-6 rounded-2xl border border-dashed"
+                className="p-6 rounded-2xl border border-dashed relative overflow-hidden"
                 style={{ background: "rgba(79, 77, 154, 0.04)", borderColor: "rgba(79, 77, 154, 0.25)" }}
               >
                 <label htmlFor="layerFile" className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#4f4d9a" }}>
@@ -251,10 +331,10 @@ export default function CreateTwibbonPage() {
                   name="layerFile"
                   required
                   accept={type === "VIDEO" ? "video/mp4,video/webm" : "image/png"}
-                  className="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:tracking-widest transition-colors file:cursor-pointer"
+                  className="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:tracking-widest transition-colors file:cursor-pointer relative z-10"
                   style={{ color: "#2f2f67" }}
                 />
-                <p className="mt-4 text-xs font-semibold leading-relaxed" style={{ color: "#4f4d9a", opacity: 0.7 }}>
+                <p className="mt-4 text-xs font-semibold leading-relaxed relative z-10" style={{ color: "#4f4d9a", opacity: 0.7 }}>
                   {type === "VIDEO"
                     ? "Format MP4/WebM. Gunakan latar belakang green screen solid untuk otomatis dihilangkan oleh sistem."
                     : "Format PNG. Pastikan area tempat foto pengguna berbentuk transparan murni."}
@@ -262,7 +342,7 @@ export default function CreateTwibbonPage() {
               </div>
 
               <div
-                className="p-6 rounded-2xl border border-dashed"
+                className="p-6 rounded-2xl border border-dashed relative overflow-hidden"
                 style={{ background: "rgba(255, 255, 255, 0.4)", borderColor: "rgba(79, 77, 154, 0.2)" }}
               >
                 <label htmlFor="thumbnailFile" className="block text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: "#2f2f67" }}>
@@ -274,15 +354,37 @@ export default function CreateTwibbonPage() {
                   name="thumbnailFile"
                   required
                   accept="image/jpeg,image/png,image/webp"
-                  className="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:tracking-widest transition-colors file:cursor-pointer"
+                  className="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:tracking-widest transition-colors file:cursor-pointer relative z-10"
                   style={{ color: "#2f2f67" }}
                 />
-                <p className="mt-4 text-xs font-semibold leading-relaxed" style={{ color: "#4f4d9a", opacity: 0.7 }}>
+                <p className="mt-4 text-xs font-semibold leading-relaxed relative z-10" style={{ color: "#4f4d9a", opacity: 0.7 }}>
                   Format JPG/PNG. Gambar ini akan muncul di daftar twibbon dan saat link disebar ke media sosial.
                 </p>
               </div>
             </div>
           </div>
+
+          {/* PROGRESS BAR UI */}
+          {isSubmitting && uploadProgress && (
+            <div className="pt-6">
+              <div className="p-5 rounded-2xl border border-solid" style={{ borderColor: "rgba(79, 77, 154, 0.2)", background: "rgba(255, 255, 255, 0.8)" }}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#4f4d9a" }}>
+                    Proses Upload: <span className="truncate max-w-[150px] inline-block align-bottom">{uploadProgress.fileName}</span>
+                  </span>
+                  <span className="text-xs font-black" style={{ color: "#2f2f67" }}>
+                    {uploadProgress.percentage}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden relative">
+                  <div className="h-2.5 rounded-full transition-all duration-300 ease-out" style={{ width: `${uploadProgress.percentage}%`, background: "#4f4d9a" }}></div>
+                </div>
+                <div className="text-[10px] font-bold text-right uppercase tracking-wider" style={{ color: "rgba(47, 47, 103, 0.6)" }}>
+                  {uploadProgress.loaded} / {uploadProgress.total}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="pt-8 flex flex-col md:flex-row justify-end items-center gap-4">
             <Link
