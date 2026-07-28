@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm"];
 
@@ -23,7 +23,7 @@ export const twibbonBaseSchema = z.object({
     if (data.layerFile.size > maxLayerSize) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Ukuran file maksimal ${data.type === "VIDEO" ? "50MB" : "10MB"}`,
+        message: `Ukuran file maksimal ${data.type === "VIDEO" ? "100MB" : "10MB"}`,
         path: ["layerFile"],
       });
     }
