@@ -294,6 +294,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           let scriptProcessor: ScriptProcessorNode | null = null;
           let audioTimestamp = 0;
 
+          let isRecordingStarted = false;
+
           try {
             audioContext = new AudioContext({ sampleRate: 44100 });
             videoElement.muted = false;
@@ -312,6 +314,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             });
 
             scriptProcessor.onaudioprocess = (e) => {
+              if (!isRecordingStarted) return;
               if (audioEncoder && audioEncoder.state === 'configured') {
                 const left = e.inputBuffer.getChannelData(0);
                 const right = e.inputBuffer.getChannelData(1);
@@ -340,7 +343,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             console.warn('Audio encoder tidak tersedia, lanjut tanpa audio:', e);
           }
 
-          // Frame counter untuk timestamp
+          // Frame counter untuk keyframe
           let frameCount = 0;
           const FPS = 30;
           const FRAME_DURATION_US = Math.round(1_000_000 / FPS); // microseconds per frame
@@ -355,8 +358,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             }, chromaColor);
 
             // Ambil frame dari canvas dan encode ke H.264
+            // Gunakan mediaTime asli dari video untuk menjamin sync audio & video
             const videoFrame = new VideoFrame(chromaCanvas, {
-              timestamp: frameCount * FRAME_DURATION_US,
+              timestamp: mediaTime * 1_000_000,
               duration: FRAME_DURATION_US,
             });
             const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
@@ -370,6 +374,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             }
           };
 
+          videoElement.pause();
           videoElement.currentTime = 0;
           videoElement.loop = false;
           const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -397,44 +402,63 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               } catch (e) { reject(e); }
             };
 
-            if (hasRVFC) {
-              let lastProcessed = 0;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const captureFrame = (_: number, meta: any) => {
-                if (meta.mediaTime - lastProcessed < 1 / FPS) {
+            const startRecording = () => {
+              isRecordingStarted = true;
+              videoElement.play().catch(reject);
+
+              if (hasRVFC) {
+                let lastProcessed = -1; // Inisialisasi -1 agar frame pertama selalu diproses
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const captureFrame = (_: number, meta: any) => {
+                  // Jika mediaTime mundur (karena loop/seek), reset lastProcessed
+                  if (meta.mediaTime < lastProcessed) lastProcessed = -1;
+
+                  if (meta.mediaTime - lastProcessed < 1 / FPS) {
+                    if (!videoElement.ended) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      (videoElement as any).requestVideoFrameCallback(captureFrame);
+                    }
+                    return;
+                  }
+                  lastProcessed = meta.mediaTime;
+                  try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
                   if (!videoElement.ended) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (videoElement as any).requestVideoFrameCallback(captureFrame);
                   }
-                  return;
-                }
-                lastProcessed = meta.mediaTime;
-                try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
-                if (!videoElement.ended) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (videoElement as any).requestVideoFrameCallback(captureFrame);
-                }
-              };
-              videoElement.onended = () => finish();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (videoElement as any).requestVideoFrameCallback(captureFrame);
-            } else {
-              // Fallback RAF untuk Firefox
-              let rafId: number;
-              let lastProcessed = 0;
-              const rafLoop = () => {
-                if (videoElement.ended) { cancelAnimationFrame(rafId); finish(); return; }
-                const t = videoElement.currentTime;
-                if (t - lastProcessed >= 1 / FPS) {
-                  lastProcessed = t;
-                  try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
-                }
+                };
+                videoElement.onended = () => finish();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (videoElement as any).requestVideoFrameCallback(captureFrame);
+              } else {
+                // Fallback RAF untuk Firefox
+                let rafId: number;
+                let lastProcessed = -1;
+                const rafLoop = () => {
+                  if (videoElement.ended) { cancelAnimationFrame(rafId); finish(); return; }
+                  const t = videoElement.currentTime;
+                  if (t < lastProcessed) lastProcessed = -1;
+                  
+                  if (t - lastProcessed >= 1 / FPS) {
+                    lastProcessed = t;
+                    try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
+                  }
+                  rafId = requestAnimationFrame(rafLoop);
+                };
                 rafId = requestAnimationFrame(rafLoop);
-              };
-              rafId = requestAnimationFrame(rafLoop);
-            }
+              }
+            };
 
-            videoElement.play().catch(reject);
+            // Pastikan video benar-benar sudah di awal sebelum mulai record
+            if (videoElement.currentTime > 0) {
+              const onSeeked = () => {
+                videoElement.removeEventListener('seeked', onSeeked);
+                startRecording();
+              };
+              videoElement.addEventListener('seeked', onSeeked);
+            } else {
+              startRecording();
+            }
           });
 
         } else {
