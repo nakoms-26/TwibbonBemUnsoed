@@ -348,8 +348,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           let frameCount = 0;
           const FPS = 30;
           const FRAME_DURATION_US = Math.round(1_000_000 / FPS); // microseconds per frame
+          let firstMediaTime = -1;
 
-          const processFrame = () => {
+          const processFrame = (mediaTime: number) => {
+            if (firstMediaTime === -1) firstMediaTime = mediaTime;
+
             // Render WebGL chroma key ke canvas
             renderGL(videoElement, chromaCanvas, userImg, {
               x: croppedAreaPixels.x,
@@ -359,9 +362,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             }, chromaColor);
 
             // Ambil frame dari canvas dan encode ke H.264
-            // Gunakan frameCount * FRAME_DURATION_US untuk menjamin timestamp selalu naik secara monoton
+            // Gunakan selisih mediaTime asli agar durasi video cocok dengan audio meskipun ada frame drop
+            const timestampUs = Math.round((mediaTime - firstMediaTime) * 1_000_000);
             const videoFrame = new VideoFrame(chromaCanvas, {
-              timestamp: frameCount * FRAME_DURATION_US,
+              timestamp: timestampUs,
               duration: FRAME_DURATION_US,
             });
             const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
@@ -434,7 +438,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     return;
                   }
                   lastProcessed = meta.mediaTime;
-                  try { processFrame(); } catch (e) { return reject(e); }
+                  try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
                   if (!videoElement.ended) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (videoElement as any).requestVideoFrameCallback(captureFrame);
@@ -463,7 +467,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
                   if (t - lastProcessed >= 1 / FPS) {
                     lastProcessed = t;
-                    try { processFrame(); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
+                    try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
                   }
                   rafId = requestAnimationFrame(rafLoop);
                 };
