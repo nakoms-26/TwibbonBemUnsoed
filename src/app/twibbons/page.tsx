@@ -23,11 +23,6 @@ export default async function PublicTwibbonsCatalogPage() {
   const twibbons = await prisma.twibbon.findMany({
     where: { isActive: true },
     orderBy: { createdAt: "desc" },
-    include: {
-      _count: {
-        select: { downloads: true },
-      },
-    },
   });
 
   return (

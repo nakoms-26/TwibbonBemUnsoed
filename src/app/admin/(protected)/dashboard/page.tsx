@@ -8,7 +8,10 @@ export default async function DashboardPage() {
   const activeTwibbons = await prisma.twibbon.count({
     where: { isActive: true },
   });
-  const totalDownloads = await prisma.download.count();
+  const downloadAggregate = await prisma.twibbon.aggregate({
+    _sum: { downloadsCount: true },
+  });
+  const totalDownloads = downloadAggregate._sum.downloadsCount || 0;
 
   // Ambil 5 twibbon terakhir yang dibuat
   const recentTwibbons = await prisma.twibbon.findMany({

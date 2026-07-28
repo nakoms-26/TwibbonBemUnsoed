@@ -15,11 +15,6 @@ export default async function LatestTwibbonsSection() {
     where: { isActive: true },
     orderBy: { createdAt: "desc" },
     take: 6,
-    include: {
-      _count: {
-        select: { downloads: true },
-      },
-    },
   });
 
   if (twibbons.length === 0) return null;

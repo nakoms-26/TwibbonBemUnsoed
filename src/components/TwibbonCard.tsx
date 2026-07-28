@@ -11,9 +11,7 @@ type TwibbonCardProps = {
     type: string;
     thumbnail: string | null;
     updatedAt?: Date | string;
-    _count?: {
-      downloads: number;
-    };
+    downloadsCount?: number;
   };
 };
 
@@ -65,7 +63,7 @@ export default function TwibbonCard({ twibbon }: TwibbonCardProps) {
 
         <div className="flex items-center gap-1.5 text-gray-400">
           <Users size={13} strokeWidth={3} />
-          <span className="text-xs font-bold">{twibbon._count ? formatCount(twibbon._count.downloads) : 0} digunakan</span>
+          <span className="text-xs font-bold">{twibbon.downloadsCount !== undefined ? formatCount(twibbon.downloadsCount) : 0} digunakan</span>
         </div>
       </div>
     </Link>
