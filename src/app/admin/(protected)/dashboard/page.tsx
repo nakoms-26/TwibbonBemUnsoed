@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   const downloadAggregate = await prisma.twibbon.aggregate({
     _sum: { downloadsCount: true },
   });
-  const totalDownloads = downloadAggregate._sum.downloadsCount || 0;
+  const totalDownloads = downloadAggregate._sum?.downloadsCount || 0;
 
   // Ambil 5 twibbon terakhir yang dibuat
   const recentTwibbons = await prisma.twibbon.findMany({
@@ -32,7 +32,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         {/* Card 1: Total Twibbon */}
         <div
-          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          className="p-8 rounded-4xl flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
           style={{
             background: "rgba(255, 255, 255, 0.65)",
             backdropFilter: "blur(20px)",
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
 
         {/* Card 2: Twibbon Aktif */}
         <div
-          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          className="p-8 rounded-4xl flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
           style={{
             background: "rgba(255, 255, 255, 0.65)",
             backdropFilter: "blur(20px)",
@@ -92,7 +92,7 @@ export default async function DashboardPage() {
 
         {/* Card 3: Total Download */}
         <div
-          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          className="p-8 rounded-4xl flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
           style={{
             background: "rgba(255, 255, 255, 0.65)",
             backdropFilter: "blur(20px)",
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
 
       {/* Recent Twibbons Section (Original card grid layout) */}
       <div
-        className="rounded-[2rem] overflow-hidden"
+        className="rounded-4xl overflow-hidden"
         style={{
           background: "rgba(255, 255, 255, 0.65)",
           backdropFilter: "blur(24px)",
