@@ -317,7 +317,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
           // Audio Encoder (AAC) — hanya jika video punya audio
           let audioEncoder: AudioEncoder | null = null;
-          let scriptProcessor: ScriptProcessorNode | null = null;
+          // AudioWorkletNode menggantikan ScriptProcessorNode (deprecated).
+          // Worklet berjalan di dedicated audio thread — tidak pernah memblok
+          // main thread atau WebGL render loop saat encoding.
+          let audioWorkletNode: AudioWorkletNode | null = null;
           let audioTimestamp = 0;
 
           let isRecordingStarted = false;
@@ -326,10 +329,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             const audioContext = audioCtxRef.current;
             const audioSource = audioSourceRef.current;
             videoElement.muted = false;
-            
-            if (audioContext && audioSource) {
-              scriptProcessor = audioContext.createScriptProcessor(4096, 2, 2);
 
+            if (audioContext && audioSource) {
               audioEncoder = new AudioEncoder({
                 output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
                 error: () => {}, // audio error tidak fatal
@@ -341,14 +342,19 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 bitrate: 128_000,
               });
 
-              scriptProcessor.onaudioprocess = (e) => {
+              // Muat AudioWorklet processor dari /public — berjalan di audio thread
+              await audioContext.audioWorklet.addModule('/audio-capture-processor.js');
+              audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
+
+              // Terima data PCM dari audio thread (zero-copy via Transferable),
+              // lalu encode ke AAC di main thread menggunakan WebCodecs AudioEncoder
+              audioWorkletNode.port.onmessage = ({ data }: MessageEvent<{ left: Float32Array; right: Float32Array }>) => {
                 if (!isRecordingStarted) return;
                 if (audioEncoder && audioEncoder.state === 'configured') {
-                  const left = e.inputBuffer.getChannelData(0);
-                  const right = e.inputBuffer.getChannelData(1);
+                  const { left, right } = data;
                   const merged = new Float32Array(left.length * 2);
                   for (let i = 0; i < left.length; i++) {
-                    merged[i * 2] = left[i];
+                    merged[i * 2]     = left[i];
                     merged[i * 2 + 1] = right[i];
                   }
                   const audioData = new AudioData({
@@ -365,11 +371,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 }
               };
 
-              audioSource.connect(scriptProcessor);
-              scriptProcessor.connect(audioContext.destination);
+              audioSource.connect(audioWorkletNode);
+              audioWorkletNode.connect(audioContext.destination);
             }
           } catch (e) {
-            console.warn('Audio encoder tidak tersedia, lanjut tanpa audio:', e);
+            console.warn('AudioWorklet tidak tersedia, lanjut tanpa audio:', e);
           }
 
           // Frame counter untuk keyframe
@@ -421,9 +427,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 if (audioEncoder) await audioEncoder.flush();
                 muxer.finalize();
 
-                // Cleanup audio graph
-                if (scriptProcessor) {
-                  scriptProcessor.disconnect();
+                // Cleanup audio graph (AudioWorkletNode)
+                if (audioWorkletNode) {
+                  audioWorkletNode.disconnect();
+                  audioWorkletNode = null;
                 }
                 // Do NOT close audioCtxRef or disconnect audioSourceRef, as they can be reused!
 
