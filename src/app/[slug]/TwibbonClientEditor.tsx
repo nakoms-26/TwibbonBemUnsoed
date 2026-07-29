@@ -24,6 +24,7 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     }
   });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<string, any> }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -198,7 +199,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
     // === FIX IOS AUDIO SILENCE: Initialize AudioContext synchronously ===
     if (isVideo && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx && !audioCtxRef.current) {
         audioCtxRef.current = new AudioCtx({ sampleRate: 44100 });
       }
@@ -300,7 +301,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           });
 
           // Video Encoder (H.264)
-          let videoEncoderClosed = false;
+
           const videoEncoder = new VideoEncoder({
             output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
             error: (e) => { throw e; },
