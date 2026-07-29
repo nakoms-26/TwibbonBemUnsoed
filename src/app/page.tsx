@@ -9,31 +9,31 @@ export const revalidate = 0;
 export default function Home() {
   return (
     <div
-      className="min-h-screen flex flex-col justify-between relative overflow-hidden w-full font-sans selection:bg-[#4f4d9a] selection:text-white"
+      className="min-h-screen flex flex-col justify-between relative overflow-hidden w-full selection:bg-[#FDB927] selection:text-black"
       style={{
-        background: "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #ddd8f8 100%)",
+        background: "linear-gradient(160deg, #1e0a4a 0%, #2d1b69 40%, #1a0f3d 100%)",
       }}
     >
       {/* Ambient Radial Glow */}
       <div
-        className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full pointer-events-none blur-3xl opacity-50"
+        className="absolute top-[-10%] left-[-10%] w-[700px] h-[700px] rounded-full pointer-events-none blur-3xl opacity-30"
         style={{
-          background: "radial-gradient(circle, rgba(142, 168, 234, 0.4) 0%, rgba(245, 243, 255, 0) 70%)",
+          background: "radial-gradient(circle, rgba(124, 92, 191, 0.6) 0%, transparent 70%)",
         }}
       />
       <div
-        className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full pointer-events-none blur-3xl opacity-40"
+        className="absolute bottom-[-10%] right-[-10%] w-[700px] h-[700px] rounded-full pointer-events-none blur-3xl opacity-25"
         style={{
-          background: "radial-gradient(circle, rgba(79, 77, 154, 0.3) 0%, rgba(245, 243, 255, 0) 70%)",
+          background: "radial-gradient(circle, rgba(167, 139, 250, 0.4) 0%, transparent 70%)",
         }}
       />
 
       {/* Grid Pattern Accent Overlay */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.03]"
+        className="absolute inset-0 pointer-events-none opacity-[0.07]"
         style={{
-          backgroundImage: `radial-gradient(#2f2f67 1.5px, transparent 1.5px)`,
-          backgroundSize: "28px 28px",
+          backgroundImage: `radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px)`,
+          backgroundSize: "32px 32px",
         }}
       />
 

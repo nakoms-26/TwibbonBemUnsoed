@@ -36,10 +36,12 @@ export async function POST(req: Request) {
 
     // Save to DB
 
-    await prisma.download.create({
+    await prisma.twibbon.update({
+      where: { id: Number(twibbonId) },
       data: {
-        twibbonId: Number(twibbonId),
-        ipAddress,
+        downloadsCount: {
+          increment: 1,
+        },
       },
     });
 

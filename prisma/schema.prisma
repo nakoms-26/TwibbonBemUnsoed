@@ -12,7 +12,7 @@ datasource db {
 model Twibbon {
   id          Int         @id @default(autoincrement())
   title       String
-  slug        String      @unique
+  slug        String      @unique(map: "twibbon_slug_unique")
   description String?     @db.Text
   type        OverlayType
   overlayFile String
@@ -22,20 +22,9 @@ model Twibbon {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  downloads   Download[]
+  downloadsCount Int         @default(0)
 
   @@map("twibbon")
-}
-
-model Download {
-  id        Int      @id @default(autoincrement())
-  twibbonId Int
-  ipAddress String
-  createdAt DateTime @default(now())
-
-  twibbon   Twibbon  @relation(fields: [twibbonId], references: [id], onDelete: Cascade)
-
-  @@map("download")
 }
 
 enum OverlayType {

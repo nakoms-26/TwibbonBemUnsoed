@@ -4,46 +4,8 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { createTwibbonSchema, updateTwibbonSchema } from "@/lib/schemas";
 import { redirect } from "next/navigation";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-
-// Fungsi helper untuk menyimpan file secara lokal
-async function saveFile(file: File, folder: string): Promise<string> {
-  const uploadApiUrl = process.env.NEXT_PUBLIC_UPLOAD_API_URL;
-  const uploadSecret = process.env.UPLOAD_SECRET;
-
-  if (!uploadApiUrl || !uploadSecret) {
-    throw new Error("Sistem gagal: URL API atau Secret untuk upload belum diatur di Environment Variables!");
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("folder", folder);
-  formData.append("secret", uploadSecret);
-
-  try {
-    const response = await fetch(uploadApiUrl, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (data.success) {
-      return data.url; // Mengembalikan URL file dari asset.bem-unsoed.com
-    } else {
-      throw new Error(data.error || "Upload failed on the asset server");
-    }
-  } catch (error) {
-    console.error("Upload error:", error);
-    throw new Error("Gagal mengunggah file ke server aset Hostinger.");
-  }
-}
 
 export async function createTwibbon(formData: FormData) {
   const session = await getServerSession(authOptions);
@@ -56,9 +18,11 @@ export async function createTwibbon(formData: FormData) {
     slug: formData.get("slug"),
     description: formData.get("description") || undefined,
     type: formData.get("type"),
-    isActive: formData.get("isActive") === "on",
-    layerFile: formData.get("layerFile"),
-    thumbnailFile: formData.get("thumbnailFile"),
+    chromaColor: formData.get("chromaColor") || undefined,
+    isActive:
+      formData.get("isActive") === "on" || formData.get("isActive") === "true",
+    layerUrl: formData.get("layerUrl"),
+    thumbnailUrl: formData.get("thumbnailUrl"),
   };
 
   const validatedFields = createTwibbonSchema.safeParse(rawData);
@@ -67,35 +31,52 @@ export async function createTwibbon(formData: FormData) {
     throw new Error(validatedFields.error.errors[0].message);
   }
 
-  const { title, slug, description, type, isActive, layerFile, thumbnailFile } = validatedFields.data;
-
-  // Simpan file
-  const layerUrl = await saveFile(layerFile as File, type === "VIDEO" ? "videos" : "images");
-  const thumbnailUrl = await saveFile(thumbnailFile as File, "thumbnails");
+  const {
+    title,
+    slug,
+    description,
+    type,
+    isActive,
+    chromaColor,
+    layerUrl,
+    thumbnailUrl,
+  } = validatedFields.data;
 
   // Default config yang simpel
   const defaultConfig = {
     overlayType: type,
-    chromaKey: type === "VIDEO" ? {
-      color: [0.0, 1.0, 0.0],
-      similarity: 0.1,
-      smoothness: 0.08
-    } : null,
-    canvasSize: { width: 1080, height: 1080 }
+    chromaKey:
+      type === "VIDEO"
+        ? {
+            color: chromaColor || "#00FF00",
+            similarity: 0.1,
+            smoothness: 0.08,
+          }
+        : null,
+    canvasSize: { width: 1080, height: 1080 },
   };
 
-  await prisma.twibbon.create({
-    data: {
-      title,
-      slug,
-      description,
-      type,
-      overlayFile: layerUrl,
-      thumbnail: thumbnailUrl,
-      isActive,
-      config: defaultConfig,
+  try {
+    await prisma.twibbon.create({
+      data: {
+        title,
+        slug,
+        description,
+        type,
+        overlayFile: layerUrl,
+        thumbnail: thumbnailUrl,
+        isActive,
+        config: defaultConfig,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === "P2002") {
+      throw new Error(
+        "Gagal menyimpan: Slug (URL) sudah dipakai, mohon ganti dengan nama lain.",
+      );
     }
-  });
+    throw error;
+  }
 
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");
@@ -116,9 +97,11 @@ export async function updateTwibbon(formData: FormData) {
     slug: formData.get("slug"),
     description: formData.get("description") || undefined,
     type: formData.get("type"),
-    isActive: formData.get("isActive") === "on",
-    layerFile: formData.get("layerFile"),
-    thumbnailFile: formData.get("thumbnailFile"),
+    chromaColor: formData.get("chromaColor") || undefined,
+    isActive:
+      formData.get("isActive") === "on" || formData.get("isActive") === "true",
+    layerUrl: formData.get("layerUrl") || undefined,
+    thumbnailUrl: formData.get("thumbnailUrl") || undefined,
   };
 
   const validatedFields = updateTwibbonSchema.safeParse(rawData);
@@ -127,10 +110,20 @@ export async function updateTwibbon(formData: FormData) {
     throw new Error(validatedFields.error.errors[0].message);
   }
 
-  const { id, title, slug, description, type, isActive, layerFile, thumbnailFile } = validatedFields.data;
+  const {
+    id,
+    title,
+    slug,
+    description,
+    type,
+    isActive,
+    chromaColor,
+    layerUrl,
+    thumbnailUrl,
+  } = validatedFields.data;
 
   const existingTwibbon = await prisma.twibbon.findUnique({
-    where: { id: parseInt(id) }
+    where: { id: parseInt(id) },
   });
 
   if (!existingTwibbon) {
@@ -138,29 +131,51 @@ export async function updateTwibbon(formData: FormData) {
   }
 
   // Update files ONLY if new files are provided
-  let layerUrl = existingTwibbon.overlayFile;
-  let thumbnailUrl = existingTwibbon.thumbnail;
+  let finalLayerUrl = layerUrl || existingTwibbon.overlayFile;
+  let finalThumbnailUrl = thumbnailUrl || existingTwibbon.thumbnail;
 
-  if (layerFile && layerFile.size > 0) {
-    layerUrl = await saveFile(layerFile as File, type === "VIDEO" ? "videos" : "images");
-  }
-  
-  if (thumbnailFile && thumbnailFile.size > 0) {
-    thumbnailUrl = await saveFile(thumbnailFile as File, "thumbnails");
+  // Perbarui config chromaKey jika tipenya VIDEO
+  let finalConfig = existingTwibbon.config as any;
+  if (type === "VIDEO") {
+    finalConfig = {
+      ...finalConfig,
+      overlayType: type,
+      chromaKey: {
+        color: chromaColor || "#00FF00",
+        similarity: 0.1,
+        smoothness: 0.08,
+      },
+    };
+  } else {
+    finalConfig = {
+      ...finalConfig,
+      overlayType: type,
+      chromaKey: null,
+    };
   }
 
-  await prisma.twibbon.update({
-    where: { id: parseInt(id) },
-    data: {
-      title,
-      slug,
-      description,
-      type,
-      overlayFile: layerUrl,
-      thumbnail: thumbnailUrl,
-      isActive,
+  try {
+    await prisma.twibbon.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        slug,
+        description,
+        type,
+        overlayFile: finalLayerUrl,
+        thumbnail: finalThumbnailUrl,
+        isActive,
+        config: finalConfig,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === "P2002") {
+      throw new Error(
+        "Gagal menyimpan: Slug (URL) sudah dipakai, mohon ganti dengan nama lain.",
+      );
     }
-  });
+    throw error;
+  }
 
   revalidatePath("/admin/twibbons");
   revalidatePath("/admin/dashboard");
@@ -177,7 +192,7 @@ export async function deleteTwibbon(id: string) {
   }
 
   await prisma.twibbon.delete({
-    where: { id: parseInt(id) }
+    where: { id: parseInt(id) },
   });
 
   revalidatePath("/admin/twibbons");

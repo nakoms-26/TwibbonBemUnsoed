@@ -30,10 +30,20 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Record<string, number> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStage, setRenderStage] = useState("");
+  // Mime type yang dipakai saat recording — menentukan ekstensi file download
+  const [videoMimeType, setVideoMimeType] = useState<string>('video/mp4');
   const isVideo = twibbon.type === "VIDEO";
+  // State untuk loading progress video overlay
+  const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
+  const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
+
+  // Audio Context refs to bypass mobile audio restrictions and prevent double-creation
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
   const [overlayDims, setOverlayDims] = useState<{
     width: number;
@@ -101,12 +111,28 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   }, [resultUrl, imageSrc]);
 
   // Live Chroma Key Preview for Video (Continuous Playback during crop)
+  // Throttled to 24fps & paused during recording to reduce load on low-end devices
   useEffect(() => {
     if (!isVideo) return;
 
     let animationId: number;
+    let lastTime = 0;
+    const TARGET_FPS = 24;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
-    const renderFrame = () => {
+    const renderFrame = (timestamp: number) => {
+      // Jangan render preview saat sedang recording (hemat CPU/GPU)
+      if (isProcessingRef.current) {
+        animationId = requestAnimationFrame(renderFrame);
+        return;
+      }
+
+      if (timestamp - lastTime < FRAME_INTERVAL) {
+        animationId = requestAnimationFrame(renderFrame);
+        return;
+      }
+      lastTime = timestamp;
+
       const video = videoRef.current;
       const canvas = previewCanvasRef.current;
 
@@ -116,7 +142,17 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         }
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
-            renderChromaKey(video, canvas);
+            const raw = twibbon.config?.chromaKey?.color;
+            let chromaColor = "#00FF00";
+            if (Array.isArray(raw)) {
+              const r = Math.round(raw[0] * 255).toString(16).padStart(2, '0');
+              const g = Math.round(raw[1] * 255).toString(16).padStart(2, '0');
+              const b = Math.round(raw[2] * 255).toString(16).padStart(2, '0');
+              chromaColor = `#${r}${g}${b}`;
+            } else if (typeof raw === 'string' && raw.startsWith('#')) {
+              chromaColor = raw;
+            }
+            renderChromaKey(video, canvas, undefined, undefined, chromaColor);
           } catch (e) {
             console.error("Chroma key render error:", e);
           }
@@ -127,7 +163,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
     animationId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(animationId);
-  }, [isVideo, twibbon.overlayFile, imageSrc]);
+  }, [isVideo, twibbon.overlayFile, imageSrc, isProcessing]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -159,9 +195,33 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
   const generateTwibbon = async () => {
     if (!imageSrc || !croppedAreaPixels || !overlayDims) return;
+
+    // === FIX IOS AUDIO SILENCE: Initialize AudioContext synchronously ===
+    if (isVideo && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx && !audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtx({ sampleRate: 44100 });
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      if (videoRef.current) {
+        videoRef.current.muted = false; // Unmute synchronously
+        if (!audioSourceRef.current && audioCtxRef.current) {
+          try {
+            audioSourceRef.current = audioCtxRef.current.createMediaElementSource(videoRef.current);
+          } catch (e) {
+            console.warn("Failed to create media element source:", e);
+          }
+        }
+      }
+    }
+    // =====================================================================
+
     setIsProcessing(true);
+    isProcessingRef.current = true;
     setRenderProgress(0);
-    setRenderStage("");
+    setRenderStage("Menyiapkan kanvas...");
 
     try {
       const userImg = await createImage(imageSrc);
@@ -190,103 +250,352 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           setResultUrl(canvas.toDataURL("image/png"));
         }
       } else {
-        // Server-side video rendering via FFmpeg
-        // Step 1: Create cropped image as base64
-        const cropCanvas = document.createElement("canvas");
-        cropCanvas.width = overlayDims.width;
-        cropCanvas.height = overlayDims.height;
-        const cropCtx = cropCanvas.getContext("2d");
-        if (!cropCtx) throw new Error("Tidak dapat membuat canvas context");
+        // === CSR: Canvas Stream + MediaRecorder ===
+        // Real-time recording, tanpa dependency eksternal
+        const videoElement = videoRef.current;
+        if (!videoElement) throw new Error('Video element tidak ditemukan');
 
-        cropCtx.drawImage(
-          userImg,
-          croppedAreaPixels.x,
-          croppedAreaPixels.y,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height,
-          0, 0,
-          overlayDims.width,
-          overlayDims.height,
-        );
+        // Selalu Full HD — dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
+        const encodeWidth  = Math.ceil(overlayDims.width  / 2) * 2;
+        const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
 
-        const croppedBase64 = cropCanvas.toDataURL("image/png");
+        // Canvas WebGL untuk chroma key & compositing (GPU)
+        const chromaCanvas = document.createElement('canvas');
+        chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
+        // Init WebGL chroma key context untuk recording
+        const { initWebGL: initGL, renderChromaKey: renderGL, destroyWebGL } = await import('@/lib/webglChroma');
+        
+        initGL(chromaCanvas);
 
-        // Step 2: Send to server via SSE streaming endpoint
-        setRenderStage("Mempersiapkan...");
-        setRenderProgress(1);
+        // Cek apakah browser mendukung WebCodecs API (VideoEncoder)
+        const supportsWebCodecs = typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined';
 
-        const response = await fetch("/api/render-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            croppedImage: croppedBase64,
-            twibbonId: twibbon.id,
-          }),
-        });
+        const duration = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.duration : 0;
+        setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Server error: ${response.status}`);
+        // Resolve chroma color sekali saja di luar loop frame
+        const rawColor = twibbon.config?.chromaKey?.color;
+        let chromaColor = '#00FF00';
+        if (Array.isArray(rawColor)) {
+          const r = Math.round(rawColor[0] * 255).toString(16).padStart(2, '0');
+          const g = Math.round(rawColor[1] * 255).toString(16).padStart(2, '0');
+          const b = Math.round(rawColor[2] * 255).toString(16).padStart(2, '0');
+          chromaColor = `#${r}${g}${b}`;
+        } else if (typeof rawColor === 'string' && rawColor.startsWith('#')) {
+          chromaColor = rawColor;
         }
 
-        if (!response.body) {
-          throw new Error("Browser tidak mendukung streaming response");
-        }
+        if (supportsWebCodecs) {
+          // ══════════════════════════════════════════════════════════
+          // PATH A: VideoEncoder + mp4-muxer → output .mp4 asli
+          // ══════════════════════════════════════════════════════════
+          const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
 
-        // Step 3: Read SSE stream for progress updates
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let videoUrl: string | null = null;
+          const target = new ArrayBufferTarget();
+          const muxer = new Muxer({
+            target,
+            video: { codec: 'avc', width: encodeWidth, height: encodeHeight },
+            audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
+            fastStart: 'in-memory',
+          });
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+          // Video Encoder (H.264)
+          let videoEncoderClosed = false;
+          const videoEncoder = new VideoEncoder({
+            output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+            error: (e) => { throw e; },
+          });
+          videoEncoder.configure({
+            codec: 'avc1.4d002a', // H.264 Main Profile, Level 4.2
+            width: encodeWidth,
+            height: encodeHeight,
+            bitrate: 4_000_000,
+            framerate: 30,
+            latencyMode: 'quality',
+            avc: { format: 'avc' }
+          });
 
-          buffer += decoder.decode(value, { stream: true });
+          // Audio Encoder (AAC) — hanya jika video punya audio
+          let audioEncoder: AudioEncoder | null = null;
+          let scriptProcessor: ScriptProcessorNode | null = null;
+          let audioTimestamp = 0;
 
-          // Parse SSE events from buffer
-          const events = buffer.split("\n\n");
-          buffer = events.pop() || ""; // Keep incomplete event in buffer
+          let isRecordingStarted = false;
 
-          for (const event of events) {
-            const dataLine = event.trim().replace(/^data:\s*/, "");
-            if (!dataLine) continue;
+          try {
+            const audioContext = audioCtxRef.current;
+            const audioSource = audioSourceRef.current;
+            videoElement.muted = false;
+            
+            if (audioContext && audioSource) {
+              scriptProcessor = audioContext.createScriptProcessor(4096, 2, 2);
 
-            let data: Record<string, unknown>;
-            try {
-              data = JSON.parse(dataLine);
-            } catch {
-              // Incomplete or invalid JSON chunk, skip
-              continue;
+              audioEncoder = new AudioEncoder({
+                output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                error: () => {}, // audio error tidak fatal
+              });
+              audioEncoder.configure({
+                codec: 'mp4a.40.2', // AAC-LC
+                sampleRate: 44100,
+                numberOfChannels: 2,
+                bitrate: 128_000,
+              });
+
+              scriptProcessor.onaudioprocess = (e) => {
+                if (!isRecordingStarted) return;
+                if (audioEncoder && audioEncoder.state === 'configured') {
+                  const left = e.inputBuffer.getChannelData(0);
+                  const right = e.inputBuffer.getChannelData(1);
+                  const merged = new Float32Array(left.length * 2);
+                  for (let i = 0; i < left.length; i++) {
+                    merged[i * 2] = left[i];
+                    merged[i * 2 + 1] = right[i];
+                  }
+                  const audioData = new AudioData({
+                    format: 'f32',
+                    sampleRate: 44100,
+                    numberOfFrames: left.length,
+                    numberOfChannels: 2,
+                    timestamp: audioTimestamp,
+                    data: merged,
+                  });
+                  audioTimestamp += (left.length / 44100) * 1_000_000;
+                  audioEncoder.encode(audioData);
+                  audioData.close();
+                }
+              };
+
+              audioSource.connect(scriptProcessor);
+              scriptProcessor.connect(audioContext.destination);
             }
-
-            if (data.stage === "error") {
-              throw new Error((data.error as string) || "Server render gagal");
-            }
-
-            // Update progress
-            if (typeof data.progress === "number") {
-              setRenderProgress(data.progress);
-            }
-
-            // Update stage message
-            if (data.message) {
-              setRenderStage(data.message as string);
-            }
-
-            // Rendering done
-            if (data.stage === "done" && data.videoUrl) {
-              videoUrl = data.videoUrl as string;
-            }
+          } catch (e) {
+            console.warn('Audio encoder tidak tersedia, lanjut tanpa audio:', e);
           }
+
+          // Frame counter untuk keyframe
+          let frameCount = 0;
+          const FPS = 30;
+          const FRAME_DURATION_US = Math.round(1_000_000 / FPS); // microseconds per frame
+          let firstMediaTime = -1;
+
+          const processFrame = (mediaTime: number) => {
+            if (firstMediaTime === -1) firstMediaTime = mediaTime;
+
+            // Render WebGL chroma key ke canvas
+            renderGL(videoElement, chromaCanvas, userImg, {
+              x: croppedAreaPixels.x,
+              y: croppedAreaPixels.y,
+              w: croppedAreaPixels.width,
+              h: croppedAreaPixels.height,
+            }, chromaColor);
+
+            // Ambil frame dari canvas dan encode ke H.264
+            // Gunakan selisih mediaTime asli agar durasi video cocok dengan audio meskipun ada frame drop
+            const timestampUs = Math.round((mediaTime - firstMediaTime) * 1_000_000);
+            const videoFrame = new VideoFrame(chromaCanvas, {
+              timestamp: timestampUs,
+              duration: FRAME_DURATION_US,
+            });
+            const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
+            videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+            videoFrame.close();
+            frameCount++;
+
+            if (duration > 0) {
+              const mediaTime = videoElement.currentTime;
+              setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
+              setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+            }
+          };
+
+          videoElement.pause();
+          videoElement.currentTime = 0;
+          videoElement.loop = false;
+          const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+          await new Promise<void>((resolve, reject) => {
+            const finish = async () => {
+              try {
+                // Flush semua encoder
+                await videoEncoder.flush();
+                if (audioEncoder) await audioEncoder.flush();
+                muxer.finalize();
+
+                // Cleanup audio graph
+                if (scriptProcessor) {
+                  scriptProcessor.disconnect();
+                }
+                // Do NOT close audioCtxRef or disconnect audioSourceRef, as they can be reused!
+
+                const { buffer } = target;
+                const blob = new Blob([buffer], { type: 'video/mp4' });
+                setResultUrl(URL.createObjectURL(blob));
+                setVideoMimeType('video/mp4');
+                setRenderProgress(100);
+                setRenderStage('Selesai!');
+                resolve();
+              } catch (e) { reject(e); }
+            };
+
+            const startRecording = () => {
+              videoElement.play().catch(reject);
+              let hasStarted = false;
+
+              if (hasRVFC) {
+                let lastProcessed = -1; 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const captureFrame = (_: number, meta: any) => {
+                  if (!hasStarted) {
+                    // Tunggu sampai video benar-benar seek ke awal (< 0.1 detik)
+                    if (meta.mediaTime > 0.1) {
+                      if (!videoElement.ended) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        (videoElement as any).requestVideoFrameCallback(captureFrame);
+                      }
+                      return;
+                    }
+                    hasStarted = true;
+                    isRecordingStarted = true;
+                    audioTimestamp = 0;
+                  }
+
+                  if (meta.mediaTime - lastProcessed < 1 / FPS) {
+                    if (!videoElement.ended) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      (videoElement as any).requestVideoFrameCallback(captureFrame);
+                    }
+                    return;
+                  }
+                  lastProcessed = meta.mediaTime;
+                  try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
+                  if (!videoElement.ended) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (videoElement as any).requestVideoFrameCallback(captureFrame);
+                  }
+                };
+                videoElement.onended = () => finish();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (videoElement as any).requestVideoFrameCallback(captureFrame);
+              } else {
+                // Fallback RAF untuk Firefox
+                let rafId: number;
+                let lastProcessed = -1;
+                const rafLoop = () => {
+                  if (videoElement.ended) { cancelAnimationFrame(rafId); finish(); return; }
+                  const t = videoElement.currentTime;
+                  
+                  if (!hasStarted) {
+                    if (t > 0.1) {
+                      rafId = requestAnimationFrame(rafLoop);
+                      return;
+                    }
+                    hasStarted = true;
+                    isRecordingStarted = true;
+                    audioTimestamp = 0;
+                  }
+
+                  if (t - lastProcessed >= 1 / FPS) {
+                    lastProcessed = t;
+                    try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
+                  }
+                  rafId = requestAnimationFrame(rafLoop);
+                };
+                rafId = requestAnimationFrame(rafLoop);
+              }
+            };
+
+            startRecording();
+          });
+
+        } else {
+          // ══════════════════════════════════════════════════════════
+          // PATH B: Fallback MediaRecorder → output .webm (Firefox)
+          // ══════════════════════════════════════════════════════════
+          const mimePreference = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+          const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+          if (!selectedMime) throw new Error('Browser tidak mendukung perekaman video.');
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const supportsManualCapture = typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)?.requestFrame === 'function';
+          const canvasStream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
+          const [videoTrack] = canvasStream.getVideoTracks();
+          const combinedStream = new MediaStream([videoTrack]);
+
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const audioStream = (videoElement as any).captureStream?.();
+            if (audioStream) audioStream.getAudioTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
+          } catch (e) { console.warn('Audio tidak tersedia:', e); }
+
+          const recorder = new MediaRecorder(combinedStream, { mimeType: selectedMime, videoBitsPerSecond: 3_000_000 });
+          const chunks: Blob[] = [];
+          recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+          const processFrame = (mediaTime: number) => {
+            renderGL(videoElement, chromaCanvas, userImg, {
+              x: croppedAreaPixels.x, y: croppedAreaPixels.y,
+              w: croppedAreaPixels.width, h: croppedAreaPixels.height,
+            }, chromaColor);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if (supportsManualCapture) (videoTrack as any).requestFrame();
+            if (duration > 0) {
+              setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
+              setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+            }
+          };
+
+          videoElement.currentTime = 0; videoElement.loop = false; videoElement.muted = false;
+          const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+          await new Promise<void>((resolve, reject) => {
+            recorder.onstop = () => {
+              try {
+                const blob = new Blob(chunks, { type: selectedMime });
+                setResultUrl(URL.createObjectURL(blob));
+                setVideoMimeType(selectedMime);
+                setRenderProgress(100); setRenderStage('Selesai!');
+                resolve();
+              } catch (e) { reject(e); }
+            };
+
+            if (hasRVFC) {
+              let lastProcessed = 0;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const captureFrame = (_: number, meta: any) => {
+                if (meta.mediaTime - lastProcessed < 1 / 30) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if (!videoElement.ended) (videoElement as any).requestVideoFrameCallback(captureFrame);
+                  return;
+                }
+                lastProcessed = meta.mediaTime;
+                try { processFrame(meta.mediaTime); } catch (e) { recorder.stop(); return reject(e); }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if (!videoElement.ended) (videoElement as any).requestVideoFrameCallback(captureFrame);
+              };
+              videoElement.onended = () => recorder.stop();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (videoElement as any).requestVideoFrameCallback(captureFrame);
+            } else {
+              let rafId: number;
+              let lastProcessed = 0;
+              const rafLoop = () => {
+                if (videoElement.ended) { cancelAnimationFrame(rafId); recorder.stop(); return; }
+                const t = videoElement.currentTime;
+                if (t - lastProcessed >= 1 / 30) { lastProcessed = t; try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); recorder.stop(); reject(e); return; } }
+                rafId = requestAnimationFrame(rafLoop);
+              };
+              rafId = requestAnimationFrame(rafLoop);
+            }
+
+            recorder.start(200);
+            videoElement.play().catch((e) => { recorder.stop(); reject(e); });
+          });
         }
 
-        if (!videoUrl) {
-          throw new Error("Server tidak mengembalikan URL video");
-        }
+        videoElement.loop = true; videoElement.onended = null;
+        chromaCanvas.width = 1;
+        destroyWebGL();
 
-        setResultUrl(videoUrl);
       }
     } catch (e: unknown) {
       console.error(e);
@@ -294,6 +603,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
       alert("Terjadi kesalahan saat memproses twibbon: " + message);
     } finally {
       setIsProcessing(false);
+      isProcessingRef.current = false;
       setRenderProgress(0);
       setRenderStage("");
     }
@@ -312,9 +622,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden shadow-xl"
             style={{
               aspectRatio: currentAspectRatio,
-              background: "rgba(255, 255, 255, 0.7)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
+              background: "#ffffff",
               border: "1px solid rgba(79, 77, 154, 0.15)",
             }}
           >
@@ -343,98 +651,129 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden border-2 border-dashed transition-all shadow-xl"
             style={{
               aspectRatio: currentAspectRatio,
-              background: "rgba(255, 255, 255, 0.5)",
+              background: "#ffffff",
               borderColor: "rgba(79, 77, 154, 0.25)",
             }}
           >
-            {imageSrc ? (
-              <>
-                <div className="absolute inset-0 z-0">
-                  {containerSize && (
-                    <Cropper
-                      image={imageSrc}
-                      crop={crop}
-                      zoom={zoom}
-                      cropSize={containerSize}
-                      onCropChange={setCrop}
-                      onCropComplete={onCropComplete}
-                      onZoomChange={setZoom}
-                      showGrid={false}
-                      restrictPosition={false}
-                      style={{
-                        cropAreaStyle: { border: 0, boxShadow: "none" },
-                        containerStyle: { backgroundColor: "#1e1b4b" },
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="absolute inset-0 pointer-events-none z-10">
-                  {isVideo ? (
-                    <>
-                      <video
-                        ref={videoRef}
-                        src={twibbon.overlayFile}
-                        crossOrigin="anonymous"
-                        muted
-                        loop
-                        autoPlay
-                        playsInline
-                        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-                        onLoadedMetadata={(e) => {
-                          e.currentTarget.play().catch(() => {});
-                          setOverlayDims({
-                            width: e.currentTarget.videoWidth,
-                            height: e.currentTarget.videoHeight,
-                          });
-                        }}
-                      />
-                      <canvas
-                        ref={previewCanvasRef}
-                        className="w-full h-full object-contain"
-                      />
-                    </>
-                  ) : (
-                    <Image
-                      src={twibbon.overlayFile}
-                      alt="Overlay"
-                      fill
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                      className="object-contain opacity-100"
-                    />
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {isVideo ? (
+            {/* === LAYER 0: Cropper foto user (hanya saat imageSrc ada) === */}
+            {imageSrc && (
+              <div className="absolute inset-0 z-0">
+                {containerSize && (
+                  <Cropper
+                    image={imageSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    cropSize={containerSize}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                    showGrid={false}
+                    restrictPosition={false}
+                    style={{
+                      cropAreaStyle: { border: 0, boxShadow: "none" },
+                      containerStyle: { backgroundColor: "#1e1b4b" },
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* === LAYER 1: Overlay (video/gambar) — SELALU ada di DOM, visibilitas diatur CSS === */}
+            <div className={`absolute inset-0 pointer-events-none ${imageSrc ? "z-10" : "z-10"}`}>
+              {isVideo ? (
+                <>
+                  {/* Satu video element tunggal — tidak pernah di-unmount agar tidak reload */}
                   <video
+                    ref={videoRef}
                     src={twibbon.overlayFile}
+                    crossOrigin="anonymous"
                     muted
                     loop
                     autoPlay
                     playsInline
-                    className="object-contain w-full h-full z-10"
+                    preload="auto"
+                    // Saat imageSrc ada: sembunyikan (dipakai WebGL via ref), tampilkan canvas
+                    // Saat belum ada foto: tampilkan sebagai preview full
+                    style={imageSrc
+                      ? { position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }
+                      : { width: "100%", height: "100%", objectFit: "contain" }
+                    }
                     onLoadedMetadata={(e) => {
+                      e.currentTarget.play().catch(() => {});
                       setOverlayDims({
                         width: e.currentTarget.videoWidth,
                         height: e.currentTarget.videoHeight,
                       });
                     }}
+                    onProgress={(e) => {
+                      const vid = e.currentTarget;
+                      if (vid.buffered.length > 0 && vid.duration > 0) {
+                        const pct = Math.round((vid.buffered.end(vid.buffered.length - 1) / vid.duration) * 100);
+                        setVideoLoadProgress(Math.min(pct, 99));
+                      }
+                    }}
+                    onCanPlayThrough={() => {
+                      setVideoLoadProgress(100);
+                      setVideoReady(true);
+                    }}
                   />
-                ) : (
-                  <Image
-                    src={twibbon.overlayFile}
-                    alt="Preview Overlay"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-contain z-10"
+                  {/* Canvas WebGL hanya terlihat saat imageSrc ada */}
+                  <canvas
+                    ref={previewCanvasRef}
+                    className="w-full h-full object-contain"
+                    style={{ display: imageSrc ? "block" : "none" }}
                   />
-                )}
+                </>
+              ) : (
+                // Image overlay: tetap pakai Next/Image, tidak ada masalah reload
+                <Image
+                  src={twibbon.overlayFile}
+                  alt="Overlay"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-contain opacity-100"
+                />
+              )}
+            </div>
 
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 flex flex-col items-center justify-center z-20 cursor-pointer group"
-                >
+            {/* === LAYER 2: Upload prompt / Loading indicator (hanya saat belum ada foto) === */}
+            {!imageSrc && (
+              <div
+                onClick={() => videoReady && fileInputRef.current?.click()}
+                className={`absolute inset-0 flex flex-col items-center justify-center z-20 group ${videoReady ? "cursor-pointer" : "cursor-default"}`}
+              >
+                {!videoReady ? (
+                  /* Loading ring */
+                  <div
+                    className="px-8 py-8 rounded-[2rem] shadow-xl text-center border"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.92)",
+                      backdropFilter: "blur(16px)",
+                      WebkitBackdropFilter: "blur(16px)",
+                      borderColor: "rgba(79, 77, 154, 0.2)",
+                    }}
+                  >
+                    <div className="relative w-20 h-20 mx-auto mb-4">
+                      <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+                        <circle cx="40" cy="40" r="32" fill="none" strokeWidth="6" stroke="rgba(79,77,154,0.12)" />
+                        <circle
+                          cx="40" cy="40" r="32" fill="none" strokeWidth="6"
+                          stroke="#4f4d9a"
+                          strokeLinecap="round"
+                          strokeDasharray={`${2 * Math.PI * 32}`}
+                          strokeDashoffset={`${2 * Math.PI * 32 * (1 - videoLoadProgress / 100)}`}
+                          style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-sm font-black tabular-nums" style={{ color: "#4f4d9a" }}>
+                        {videoLoadProgress}%
+                      </span>
+                    </div>
+                    <p className="font-extrabold text-sm uppercase tracking-wider" style={{ color: "#2f2f67" }}>Memuat Video...</p>
+                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.7 }}>Harap tunggu, video sedang dimuat</p>
+                  </div>
+                ) : (
+                  /* Upload prompt */
                   <div
                     className="px-8 py-6 rounded-[2rem] shadow-xl text-center border transition-all group-hover:scale-105"
                     style={{
@@ -444,33 +783,25 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       borderColor: "rgba(79, 77, 154, 0.2)",
                     }}
                   >
-                    <div
-                      className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12"
-                      style={{ background: "#4f4d9a" }}
-                    >
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12" style={{ background: "#2d1b69" }}>
                       <Upload size={24} />
                     </div>
-                    <p className="font-extrabold text-base uppercase tracking-wider transition-colors" style={{ color: "#2f2f67" }}>
-                      Pilih Foto
-                    </p>
-                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>
-                      Klik area ini untuk mengunggah
-                    </p>
+                    <p className="font-extrabold text-base uppercase tracking-wider transition-colors" style={{ color: "#2f2f67" }}>Pilih Foto</p>
+                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>Klik area ini untuk mengunggah</p>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
 
+
       {/* Kanan: Controls */}
       <div
         className="w-full md:w-96 flex flex-col space-y-6 md:space-y-8 p-6 md:p-8 rounded-[2rem] border shadow-xl self-start h-full"
         style={{
-          background: "rgba(255, 255, 255, 0.65)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          background: "#ffffff",
           borderColor: "rgba(79, 77, 154, 0.12)",
           boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
         }}
@@ -492,8 +823,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   navigator.clipboard.writeText(twibbon.description);
                   alert("Caption berhasil disalin!");
                 }}
-                className="text-[10px] flex items-center space-x-1 font-extrabold text-white transition-all px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm hover:scale-105"
-                style={{ background: "#4f4d9a" }}
+                className="text-[10px] flex items-center space-x-1 font-extrabold text-black transition-all px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm hover:scale-105"
+                style={{ background: "#FDB927" }}
               >
                 <Copy size={12} />
                 <span>Salin</span>
@@ -602,15 +933,25 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   >
                     {renderStage || "Mempersiapkan..."}
                   </p>
+
+                  {/* Warning: jangan pindah tab — browser throttle RAF saat tidak aktif */}
+                  {isVideo && (
+                    <p
+                      className="text-xs font-semibold text-center mt-2 leading-relaxed"
+                      style={{ color: "#b45309", opacity: 0.9 }}
+                    >
+                      ⏳ Jangan menutup atau berpindah tab selama proses berlangsung.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <button
                   onClick={generateTwibbon}
                   disabled={!imageSrc || isProcessing || !overlayDims}
-                  className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
+                  className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center space-x-2"
                   style={{
-                    background: "#4f4d9a",
-                    boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                    background: "#FDB927",
+                    boxShadow: "0 4px 16px rgba(253, 185, 39, 0.3)",
                   }}
                 >
                   {isProcessing ? (
@@ -653,7 +994,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               </div>
               <a
                 href={resultUrl}
-                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? "mp4" : "png"}`}
+                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? (videoMimeType.startsWith('video/mp4') ? 'mp4' : 'webm') : "png"}`}
                 onClick={() => {
                   fetch("/api/downloads", {
                     method: "POST",
@@ -661,10 +1002,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     body: JSON.stringify({ twibbonId: twibbon.id }),
                   }).catch(console.error);
                 }}
-                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-white rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
+                className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
                 style={{
-                  background: "#4f4d9a",
-                  boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
+                  background: "#FDB927",
+                  boxShadow: "0 4px 16px rgba(253, 185, 39, 0.3)",
                 }}
               >
                 <Download size={16} />

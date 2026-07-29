@@ -13,22 +13,20 @@ export default function Footer() {
     <footer
       className="w-full py-8 border-t z-20 relative mt-auto"
       style={{
-        background: "rgba(255, 255, 255, 0.70)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderColor: "rgba(79, 77, 154, 0.12)",
+        background: "#ffffff",
+        borderColor: "rgba(45, 27, 105, 0.12)",
       }}
     >
       <div className="max-w-[1440px] mx-auto px-6 md:px-10 flex flex-col items-center justify-center text-center text-[10px] md:text-xs font-bold uppercase tracking-widest gap-2">
-        <p style={{ color: "#2f2f67" }}>© {new Date().getFullYear()} BEM UNSOED.</p>
-        <p className="leading-relaxed" style={{ color: "#4f4d9a", opacity: 0.8 }}>
+        <p style={{ color: "#1e0a4a" }}>© {new Date().getFullYear()} BEM UNSOED.</p>
+        <p className="leading-relaxed" style={{ color: "#2d1b69", opacity: 0.8 }}>
           Dibuat oleh{" "}
           <a
             href="https://www.instagram.com/nakomisme/"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:underline transition-colors"
-            style={{ color: "#4f4d9a" }}
+            style={{ color: "#2d1b69" }}
           >
             Kementerian Media dan Komunikasi
           </a>

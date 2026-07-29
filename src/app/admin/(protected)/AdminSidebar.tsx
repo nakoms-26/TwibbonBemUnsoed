@@ -12,8 +12,16 @@ export default function AdminSidebar({ userName }: { userName: string }) {
   const pathname = usePathname();
 
   const navLinks = [
-    { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-    { href: "/admin/twibbons", label: "Kelola Twibbon", icon: <ImageIcon size={18} /> },
+    {
+      href: "/admin/dashboard",
+      label: "Dashboard",
+      icon: <LayoutDashboard size={18} />,
+    },
+    {
+      href: "/admin/twibbons",
+      label: "Kelola Twibbon",
+      icon: <ImageIcon size={18} />,
+    },
   ];
 
   return (
@@ -28,13 +36,16 @@ export default function AdminSidebar({ userName }: { userName: string }) {
           borderColor: "rgba(79, 77, 154, 0.12)",
         }}
       >
-        <div className="flex items-center space-x-3">
-          <div className="relative w-8 h-8">
-            <Image src="/logo.png" alt="Logo" fill sizes="32px" className="object-contain" />
+        <div className="flex items-center">
+          <div className="relative w-32 h-8">
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              fill
+              sizes="128px"
+              className="object-contain object-left"
+            />
           </div>
-          <span className="text-lg font-black tracking-tighter uppercase" style={{ color: "#2f2f67" }}>
-            DASHBOARD
-          </span>
         </div>
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -66,18 +77,25 @@ export default function AdminSidebar({ userName }: { userName: string }) {
           boxShadow: "4px 0 24px rgba(79, 77, 154, 0.06)",
         }}
       >
-        <div className="h-20 flex items-center px-8 border-b shrink-0 space-x-3" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
-          <div className="relative w-9 h-9">
-            <Image src="/logo.png" alt="Logo" fill sizes="36px" className="object-contain" />
+        <div
+          className="h-20 flex items-center px-8 border-b shrink-0"
+          style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}
+        >
+          <div className="relative w-40 h-10">
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              fill
+              sizes="160px"
+              className="object-contain object-left"
+            />
           </div>
-          <span className="text-xl font-black tracking-tighter uppercase" style={{ color: "#2f2f67" }}>
-            DASHBOARD
-          </span>
         </div>
-        
+
         <nav className="flex-1 p-6 space-y-3 overflow-y-auto">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href || pathname?.startsWith(link.href + "/");
+            const isActive =
+              pathname === link.href || pathname?.startsWith(link.href + "/");
             return (
               <Link
                 key={link.href}
@@ -104,10 +122,22 @@ export default function AdminSidebar({ userName }: { userName: string }) {
           })}
         </nav>
 
-        <div className="p-6 border-t shrink-0" style={{ borderColor: "rgba(79, 77, 154, 0.1)", background: "rgba(79, 77, 154, 0.03)" }}>
-          <div className="mb-4 text-[10px] font-extrabold uppercase tracking-widest" style={{ color: "#4f4d9a", opacity: 0.8 }}>
+        <div
+          className="p-6 border-t shrink-0"
+          style={{
+            borderColor: "rgba(79, 77, 154, 0.1)",
+            background: "rgba(79, 77, 154, 0.03)",
+          }}
+        >
+          <div
+            className="mb-4 text-[10px] font-extrabold uppercase tracking-widest"
+            style={{ color: "#4f4d9a", opacity: 0.8 }}
+          >
             Login Sebagai: <br />
-            <span className="font-black text-sm mt-1 block truncate" style={{ color: "#2f2f67" }}>
+            <span
+              className="font-black text-sm mt-1 block truncate"
+              style={{ color: "#2f2f67" }}
+            >
               {userName}
             </span>
           </div>

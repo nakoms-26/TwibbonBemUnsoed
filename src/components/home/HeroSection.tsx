@@ -1,18 +1,38 @@
-import { ArrowYellowLeft, ArrowYellowRight, CircularBadge } from "@/components/ui/Accents";
+import {
+  ArrowYellowLeft,
+  ArrowYellowRight,
+  CircularBadge,
+} from "@/components/ui/Accents";
 import Link from "next/link";
+import { Archivo_Black } from "next/font/google";
 
-export default function HeroSection({ compact = false }: { compact?: boolean }) {
+const archivoBlack = Archivo_Black({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+export default function HeroSection({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   return (
-    <main className={`relative z-10 px-4 flex flex-col items-center justify-center w-full max-w-[1440px] mx-auto ${compact ? 'pt-12 pb-16 md:pt-16 md:pb-24' : 'flex-1 pt-24 pb-16 md:pt-32 md:pb-20'}`}>
+    <main
+      className={`relative z-10 px-4 flex flex-col items-center justify-center w-full max-w-[1440px] mx-auto ${compact ? "pt-12 pb-16 md:pt-16 md:pb-24" : "flex-1 pt-24 pb-16 md:pt-32 md:pb-20"}`}
+    >
+      {/* Grid Pattern Overlay */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] z-[-1] pointer-events-none" />
+
       <div className="relative w-full max-w-5xl mx-auto flex flex-col items-center justify-center text-center z-10 mt-4 mb-8">
         {/* Massive Typography */}
         <div className="w-full flex flex-col items-center relative z-10 space-y-2 md:space-y-4">
           <div className="w-full flex justify-start pl-[10%] md:pl-[20%] relative z-30">
             <h1
-              className="text-[clamp(4rem,11vw,140px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase font-black"
+              className={`text-[clamp(4rem,11vw,140px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase ${archivoBlack.className}`}
               style={{
-                color: "#4f4d9a",
-                textShadow: "0 4px 20px rgba(79, 77, 154, 0.2)",
+                color: "#FDB927",
+                textShadow: "6px 6px 0px #0a031e",
               }}
             >
               #BEM
@@ -21,10 +41,10 @@ export default function HeroSection({ compact = false }: { compact?: boolean }) 
 
           <div className="w-full flex justify-center relative z-20">
             <h1
-              className="text-[clamp(4.5rem,14vw,200px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase font-black"
+              className={`text-[clamp(4.5rem,14vw,200px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase ${archivoBlack.className}`}
               style={{
-                color: "#2f2f67",
-                textShadow: "0 4px 24px rgba(47, 47, 103, 0.15)",
+                color: "#ffffff",
+                textShadow: "8px 8px 0px #0a031e",
               }}
             >
               UNSOED
@@ -33,10 +53,10 @@ export default function HeroSection({ compact = false }: { compact?: boolean }) 
 
           <div className="w-full flex justify-end pr-[5%] md:pr-[20%] relative z-10">
             <h1
-              className="text-[clamp(4rem,11vw,140px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase font-black"
+              className={`text-[clamp(4rem,11vw,140px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase ${archivoBlack.className}`}
               style={{
-                color: "#8ea8ea",
-                textShadow: "0 4px 20px rgba(142, 168, 234, 0.25)",
+                color: "#ffffff",
+                textShadow: "6px 6px 0px #0a031e",
               }}
             >
               twibbon
@@ -59,20 +79,6 @@ export default function HeroSection({ compact = false }: { compact?: boolean }) 
             <CircularBadge />
           </div>
         </div>
-      </div>
-
-      {/* CTA Buttons */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 z-30">
-        <Link
-          href="/twibbons"
-          className="w-full sm:w-auto px-8 py-3.5 text-xs font-extrabold uppercase tracking-wider rounded-full text-white transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2 shadow-md"
-          style={{
-            background: "#4f4d9a",
-            boxShadow: "0 4px 16px rgba(79, 77, 154, 0.3)",
-          }}
-        >
-          <span>Jelajah Twibbon</span>
-        </Link>
       </div>
     </main>
   );

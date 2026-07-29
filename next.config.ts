@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '50mb', // Diperbesar menjadi 50MB untuk upload video MP4/WebM
+      bodySizeLimit: '100mb', // Diperbesar menjadi 100MB untuk upload video MP4/WebM
     },
   },
   images: {

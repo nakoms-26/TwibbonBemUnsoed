@@ -5,8 +5,13 @@ import { Image as ImageIcon, CheckCircle, Download } from "lucide-react";
 export default async function DashboardPage() {
   // Ambil statistik dari database
   const totalTwibbons = await prisma.twibbon.count();
-  const activeTwibbons = await prisma.twibbon.count({ where: { isActive: true } });
-  const totalDownloads = await prisma.download.count();
+  const activeTwibbons = await prisma.twibbon.count({
+    where: { isActive: true },
+  });
+  const downloadAggregate = await prisma.twibbon.aggregate({
+    _sum: { downloadsCount: true },
+  });
+  const totalDownloads = downloadAggregate._sum?.downloadsCount || 0;
 
   // Ambil 5 twibbon terakhir yang dibuat
   const recentTwibbons = await prisma.twibbon.findMany({
@@ -16,7 +21,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-10 pb-10">
-      <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+      <h1
+        className="text-4xl md:text-5xl font-black uppercase tracking-tight"
+        style={{ color: "#2f2f67" }}
+      >
         DASHBOARD
       </h1>
 
@@ -24,7 +32,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         {/* Card 1: Total Twibbon */}
         <div
-          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          className="p-8 rounded-4xl flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
           style={{
             background: "rgba(255, 255, 255, 0.65)",
             backdropFilter: "blur(20px)",
@@ -33,11 +41,17 @@ export default async function DashboardPage() {
             boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
           }}
         >
-          <div className="p-4 rounded-2xl text-white shadow-sm" style={{ background: "#4f4d9a" }}>
+          <div
+            className="p-4 rounded-2xl text-white shadow-sm"
+            style={{ background: "#4f4d9a" }}
+          >
             <ImageIcon className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a" }}>
+            <p
+              className="text-xs font-extrabold uppercase tracking-widest mb-1"
+              style={{ color: "#4f4d9a" }}
+            >
               Total Twibbon
             </p>
             <p className="text-4xl font-black" style={{ color: "#2f2f67" }}>
@@ -48,7 +62,7 @@ export default async function DashboardPage() {
 
         {/* Card 2: Twibbon Aktif */}
         <div
-          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          className="p-8 rounded-4xl flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
           style={{
             background: "rgba(255, 255, 255, 0.65)",
             backdropFilter: "blur(20px)",
@@ -57,11 +71,17 @@ export default async function DashboardPage() {
             boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
           }}
         >
-          <div className="p-4 rounded-2xl text-white shadow-sm" style={{ background: "#8ea8ea" }}>
+          <div
+            className="p-4 rounded-2xl text-white shadow-sm"
+            style={{ background: "#8ea8ea" }}
+          >
             <CheckCircle className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a" }}>
+            <p
+              className="text-xs font-extrabold uppercase tracking-widest mb-1"
+              style={{ color: "#4f4d9a" }}
+            >
               Twibbon Aktif
             </p>
             <p className="text-4xl font-black" style={{ color: "#2f2f67" }}>
@@ -72,7 +92,7 @@ export default async function DashboardPage() {
 
         {/* Card 3: Total Download */}
         <div
-          className="p-8 rounded-[2rem] flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
+          className="p-8 rounded-4xl flex items-center space-x-6 relative overflow-hidden transition-transform hover:-translate-y-1"
           style={{
             background: "rgba(255, 255, 255, 0.65)",
             backdropFilter: "blur(20px)",
@@ -81,11 +101,17 @@ export default async function DashboardPage() {
             boxShadow: "0 4px 24px rgba(79, 77, 154, 0.08)",
           }}
         >
-          <div className="p-4 rounded-2xl text-white shadow-sm" style={{ background: "#6b2f5a" }}>
+          <div
+            className="p-4 rounded-2xl text-white shadow-sm"
+            style={{ background: "#6b2f5a" }}
+          >
             <Download className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-widest mb-1" style={{ color: "#4f4d9a" }}>
+            <p
+              className="text-xs font-extrabold uppercase tracking-widest mb-1"
+              style={{ color: "#4f4d9a" }}
+            >
               Total Download
             </p>
             <p className="text-4xl font-black" style={{ color: "#2f2f67" }}>
@@ -97,7 +123,7 @@ export default async function DashboardPage() {
 
       {/* Recent Twibbons Section (Original card grid layout) */}
       <div
-        className="rounded-[2rem] overflow-hidden"
+        className="rounded-4xl overflow-hidden"
         style={{
           background: "rgba(255, 255, 255, 0.65)",
           backdropFilter: "blur(24px)",
@@ -108,9 +134,15 @@ export default async function DashboardPage() {
       >
         <div
           className="px-8 py-6 flex justify-between items-center border-b"
-          style={{ borderColor: "rgba(79, 77, 154, 0.1)", background: "rgba(255, 255, 255, 0.4)" }}
+          style={{
+            borderColor: "rgba(79, 77, 154, 0.1)",
+            background: "rgba(255, 255, 255, 0.4)",
+          }}
         >
-          <h2 className="text-2xl font-black uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+          <h2
+            className="text-2xl font-black uppercase tracking-tight"
+            style={{ color: "#2f2f67" }}
+          >
             TWIBBON TERBARU
           </h2>
           <Link
@@ -124,7 +156,10 @@ export default async function DashboardPage() {
 
         <div className="p-6 md:p-8">
           {recentTwibbons.length === 0 ? (
-            <div className="text-center py-10 font-bold" style={{ color: "#4f4d9a", opacity: 0.7 }}>
+            <div
+              className="text-center py-10 font-bold"
+              style={{ color: "#4f4d9a", opacity: 0.7 }}
+            >
               Belum ada twibbon yang dibuat.
             </div>
           ) : (
@@ -140,10 +175,16 @@ export default async function DashboardPage() {
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex flex-col">
-                      <span className="text-lg font-black uppercase leading-tight line-clamp-1" style={{ color: "#2f2f67" }}>
+                      <span
+                        className="text-lg font-black uppercase leading-tight line-clamp-1"
+                        style={{ color: "#2f2f67" }}
+                      >
                         {twibbon.title}
                       </span>
-                      <span className="text-xs font-bold opacity-75" style={{ color: "#4f4d9a" }}>
+                      <span
+                        className="text-xs font-bold opacity-75"
+                        style={{ color: "#4f4d9a" }}
+                      >
                         /{twibbon.slug}
                       </span>
                     </div>
@@ -151,8 +192,14 @@ export default async function DashboardPage() {
                       className="px-3 py-1.5 inline-flex text-[10px] uppercase tracking-widest font-black rounded-lg shrink-0"
                       style={
                         twibbon.isActive
-                          ? { background: "rgba(34, 197, 94, 0.12)", color: "#16a34a" }
-                          : { background: "rgba(239, 68, 68, 0.12)", color: "#dc2626" }
+                          ? {
+                              background: "rgba(34, 197, 94, 0.12)",
+                              color: "#16a34a",
+                            }
+                          : {
+                              background: "rgba(239, 68, 68, 0.12)",
+                              color: "#dc2626",
+                            }
                       }
                     >
                       {twibbon.isActive ? "Aktif" : "Nonaktif"}
@@ -164,11 +211,17 @@ export default async function DashboardPage() {
                   >
                     <span
                       className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md"
-                      style={{ background: "rgba(79, 77, 154, 0.12)", color: "#4f4d9a" }}
+                      style={{
+                        background: "rgba(79, 77, 154, 0.12)",
+                        color: "#4f4d9a",
+                      }}
                     >
                       {twibbon.type}
                     </span>
-                    <span className="text-xs font-bold opacity-70" style={{ color: "#2f2f67" }}>
+                    <span
+                      className="text-xs font-bold opacity-70"
+                      style={{ color: "#2f2f67" }}
+                    >
                       {new Date(twibbon.createdAt).toLocaleDateString("id-ID", {
                         day: "numeric",
                         month: "short",
