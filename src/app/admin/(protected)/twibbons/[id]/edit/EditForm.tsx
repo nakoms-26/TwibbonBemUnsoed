@@ -99,8 +99,9 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
       if (hasNewLayer || hasNewThumbnail) {
         setUploadProgress({ percentage: 0, loaded: "0 MB", total: "0 MB", fileName: "Menyiapkan server..." });
         const credRes = await fetch("/api/admin/upload-credentials");
-        if (!credRes.ok) throw new Error("Gagal mendapatkan akses upload");
+        if (!credRes.ok) throw new Error("Gagal mendapatkan akses upload. Pastikan Anda masih login.");
         const creds = await credRes.json();
+        if (!creds.secret || !creds.url) throw new Error("Kredensial upload tidak valid. Coba login ulang.");
 
         if (hasNewLayer) {
           layerUrl = await uploadFile(layerFile, "twibbon", creds.secret, creds.url);
@@ -128,7 +129,14 @@ export default function EditForm({ twibbon }: { twibbon: any }) {
       if (layerUrl) finalFormData.append("layerUrl", layerUrl);
       if (thumbnailUrl) finalFormData.append("thumbnailUrl", thumbnailUrl);
 
-      await updateTwibbon(finalFormData);
+      // Panggil Server Action — jika berhasil server akan redirect (tidak kembali ke sini)
+      // Jika ada error, server mengembalikan { error: string }
+      const result = await updateTwibbon(finalFormData);
+
+      // Jika sampai sini, berarti ada error (redirect tidak terjadi)
+      if (result && "error" in result) {
+        throw new Error(result.error);
+      }
 
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan yang tidak diketahui");
