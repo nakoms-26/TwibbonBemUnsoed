@@ -8,6 +8,18 @@ let videoTexture: WebGLTexture | null = null;
 let imageTexture: WebGLTexture | null = null;
 let lastUserImg: HTMLImageElement | null = null;
 
+// Cached uniform & attrib locations — diisi sekali saat initWebGL()
+// supaya renderChromaKey() tidak perlu GPU driver roundtrip tiap frame
+let uVideo: WebGLUniformLocation | null = null;
+let uKeyColor: WebGLUniformLocation | null = null;
+let uSimilarity: WebGLUniformLocation | null = null;
+let uSmoothness: WebGLUniformLocation | null = null;
+let uHasImage: WebGLUniformLocation | null = null;
+let uImage: WebGLUniformLocation | null = null;
+let uCrop: WebGLUniformLocation | null = null;
+let aPosition = -1;
+let aTexCoord = -1;
+
 const VERTEX_SHADER = `
   attribute vec2 a_position;
   attribute vec2 a_texCoord;
@@ -88,6 +100,17 @@ export function initWebGL(canvas: HTMLCanvasElement) {
     throw new Error("Gagal link shader program: " + gl.getProgramInfoLog(shaderProgram));
   }
 
+  // Cache semua uniform & attrib locations — SEKALI saja di sini
+  uVideo      = gl.getUniformLocation(shaderProgram, "u_video");
+  uKeyColor   = gl.getUniformLocation(shaderProgram, "u_keyColor");
+  uSimilarity = gl.getUniformLocation(shaderProgram, "u_similarity");
+  uSmoothness = gl.getUniformLocation(shaderProgram, "u_smoothness");
+  uHasImage   = gl.getUniformLocation(shaderProgram, "u_hasImage");
+  uImage      = gl.getUniformLocation(shaderProgram, "u_image");
+  uCrop       = gl.getUniformLocation(shaderProgram, "u_crop");
+  aPosition   = gl.getAttribLocation(shaderProgram, "a_position");
+  aTexCoord   = gl.getAttribLocation(shaderProgram, "a_texCoord");
+
   // Setup Buffers (Quad)
   positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -163,16 +186,15 @@ export function renderChromaKey(
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, videoTexture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-  gl.uniform1i(gl.getUniformLocation(shaderProgram!, "u_video"), 0);
+  gl.uniform1i(uVideo, 0);
 
-  // Set chroma key params
+  // Set chroma key params (gunakan cached locations — tidak ada driver roundtrip)
   const [r, g, b] = hexToRgb(chromaColorHex);
-  gl.uniform3f(gl.getUniformLocation(shaderProgram!, "u_keyColor"), r, g, b);
-  gl.uniform1f(gl.getUniformLocation(shaderProgram!, "u_similarity"), 0.15); // Adjust threshold as needed
-  gl.uniform1f(gl.getUniformLocation(shaderProgram!, "u_smoothness"), 0.1);
+  gl.uniform3f(uKeyColor, r, g, b);
+  gl.uniform1f(uSimilarity, 0.15);
+  gl.uniform1f(uSmoothness, 0.1);
 
   // Bind image to texture unit 1 (if provided)
-  const uHasImage = gl.getUniformLocation(shaderProgram!, "u_hasImage");
   if (userImg && crop) {
     gl.uniform1i(uHasImage, 1);
     
@@ -182,11 +204,9 @@ export function renderChromaKey(
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, userImg);
       lastUserImg = userImg;
     }
-    gl.uniform1i(gl.getUniformLocation(shaderProgram!, "u_image"), 1);
-
-    const cropLocation = gl.getUniformLocation(shaderProgram!, "u_crop");
+    gl.uniform1i(uImage, 1);
     gl.uniform4f(
-      cropLocation, 
+      uCrop, 
       crop.x / userImg.naturalWidth, 
       crop.y / userImg.naturalHeight, 
       crop.w / userImg.naturalWidth, 
@@ -196,16 +216,14 @@ export function renderChromaKey(
     gl.uniform1i(uHasImage, 0);
   }
 
-  // Setup Attributes
-  const positionLocation = gl.getAttribLocation(shaderProgram!, "a_position");
-  gl.enableVertexAttribArray(positionLocation);
+  // Setup Attributes (gunakan cached locations — tidak ada driver roundtrip)
+  gl.enableVertexAttribArray(aPosition);
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
 
-  const texCoordLocation = gl.getAttribLocation(shaderProgram!, "a_texCoord");
-  gl.enableVertexAttribArray(texCoordLocation);
+  gl.enableVertexAttribArray(aTexCoord);
   gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-  gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
 
   // Render composite!
   gl.clearColor(0.0, 0.0, 0.0, 0.0);
@@ -223,5 +241,9 @@ export function destroyWebGL() {
     videoTexture = null;
     imageTexture = null;
     lastUserImg = null;
+    // Reset cached locations juga
+    uVideo = null; uKeyColor = null; uSimilarity = null;
+    uSmoothness = null; uHasImage = null; uImage = null; uCrop = null;
+    aPosition = -1; aTexCoord = -1;
   }
 }
