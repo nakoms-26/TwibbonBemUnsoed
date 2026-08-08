@@ -132,7 +132,7 @@ export default async function PublicTwibbonPage({
               {twibbon.title}
             </h1>
             <p className="text-sm font-semibold mt-1" style={{ color: "rgba(237,233,254,0.7)" }}>
-              🎯 {twibbon.downloadsCount.toLocaleString("id-ID")} kali digunakan
+              🎯 {downloadsCount.toLocaleString("id-ID")} kali digunakan
             </p>
           </div>
 
