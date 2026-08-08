@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -12,8 +12,8 @@ datasource db {
 model Twibbon {
   id          Int         @id @default(autoincrement())
   title       String
-  slug        String      @unique(map: "twibbon_slug_unique")
-  description String?     @db.Text
+  slug        String      @unique
+  description String?
   type        OverlayType
   overlayFile String
   thumbnail   String
