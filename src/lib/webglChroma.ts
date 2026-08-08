@@ -196,17 +196,14 @@ export function renderChromaKey(
   if (!glContext || !shaderProgram || glContext.canvas !== canvas) {
     initWebGL(canvas);
   }
-
-  // Canvas resize (lebar/tinggi berubah) menyebabkan WebGL context hilang secara implisit.
-  // Harus reinit agar shader, texture, dan buffer kembali valid.
+  
+  const gl = glContext!;
+  
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    initWebGL(canvas); // Wajib reinit setelah resize — context hilang saat ukuran canvas berubah
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
   }
-
-  const gl = glContext!; // Baca ulang setelah potensi reinit
-  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
 
   gl.useProgram(shaderProgram);
 
@@ -258,15 +255,6 @@ export function renderChromaKey(
   gl.clearColor(0.0, 0.0, 0.0, 0.0);
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
-}
-
-/**
- * Flush pending WebGL commands ke GPU.
- * Panggil ini SEBELUM new VideoFrame(canvas) agar GPU selesai render
- * sebelum frame di-capture, mencegah frame kosong/corrupted.
- */
-export function flushWebGL() {
-  glContext?.flush();
 }
 
 export function destroyWebGL() {
