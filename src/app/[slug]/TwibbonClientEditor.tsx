@@ -143,7 +143,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         }
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
-            const raw = twibbon.config?.chromaKey?.color;
+            const raw = twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
             let chromaColor = "#00FF00";
             if (Array.isArray(raw)) {
               const r = Math.round(raw[0] * 255).toString(16).padStart(2, '0');
@@ -275,7 +275,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
 
         // Resolve chroma color sekali saja di luar loop frame
-        const rawColor = twibbon.config?.chromaKey?.color;
+        const rawColor = twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
         let chromaColor = '#00FF00';
         if (Array.isArray(rawColor)) {
           const r = Math.round(rawColor[0] * 255).toString(16).padStart(2, '0');
@@ -423,9 +423,14 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           await new Promise<void>((resolve, reject) => {
             const finish = async () => {
               try {
-                // Flush semua encoder
+                // Hentikan pengiriman chunk audio/video baru DARI SEKARANG
+                isRecordingStarted = false;
+
+                // Flush semua encoder (tunggu sisa antrean diproses)
                 await videoEncoder.flush();
                 if (audioEncoder) await audioEncoder.flush();
+                
+                // Baru aman untuk finalize
                 muxer.finalize();
 
                 // Cleanup audio graph (AudioWorkletNode)

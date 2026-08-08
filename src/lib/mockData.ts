@@ -1,0 +1,65 @@
+export const mockTwibbons = [
+  {
+    id: 1,
+    title: "[OPEN RECRUITMENT STAF BEM UNSOED 2026]",
+    slug: "oprec-bem-unsoed-2026",
+    description: `[OPEN RECRUITMENT STAF BEM UNSOED 2026]
+
+Halo, Soedirman muda!
+
+Saya Adridinan Najmi Faza dari Fakultas Teknik siap beraksi bersama BEM Unsoed Saya ingin merevitalisasi website BEM Unsoed menjadi pusat informasi digital yang cepat, kredibel, dan inklusif melalui optimalisasi performa teknis berbasis WordPress serta standarisasi konten jurnalistik yang berkualitas.
+
+Mari berkolaborasi bersama BEM Unsoed, untuk menciptakan aksi dan perubahan nyata🌟
+
+@bem_unsoed @willynaren @rivalangrh_ @srfdnn_dnii
+
+#BEMUnsoed2026
+#KolaborAksi
+#MerajutKolaborasiWujudkanAksi
+#JoinBEMUnsoed2026`,
+    type: "IMAGE",
+    overlayFile: "/twibbon/overlay_oprec.png",
+    thumbnail: "/twibbon/thumbnailoprec.webp",
+    config: { overlayOpacity: 1, framePosition: "cover" },
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    downloadsCount: 1250,
+  },
+  {
+    id: 2,
+    title: "Soedirman Student Summit 2026",
+    slug: "SoedirmanStudentSummit2026",
+    description: "Twibbon resmi untuk mahasiswa baru Unsoed angkatan 2026.",
+    type: "VIDEO",
+    overlayFile: "/twibbon/overlay_s3.mp4",
+    thumbnail: "/twibbon/thumbnail_s3.jpg",
+    config: {
+      overlayOpacity: 1,
+      framePosition: "cover",
+      chromaColor: "#00FF00",
+    },
+    isActive: true,
+    createdAt: new Date(Date.now() - 86400000), // yesterday
+    updatedAt: new Date(),
+    downloadsCount: 3000,
+  },
+  {
+    id: 3,
+    title: "Soedirman Student Summit 2026",
+    slug: "SoedirmanStudentSummitungu",
+    description: "Twibbon resmi untuk mahasiswa baru Unsoed angkatan 2026.",
+    type: "VIDEO",
+    overlayFile: "/twibbon/ungu.mp4",
+    thumbnail: "/twibbon/thumbnail_s3.jpg",
+    config: {
+      overlayOpacity: 1,
+      framePosition: "cover",
+      chromaColor: "#8d01be",
+    },
+    isActive: true,
+    createdAt: new Date(Date.now() - 86400000), // yesterday
+    updatedAt: new Date(),
+    downloadsCount: 3000,
+  },
+];

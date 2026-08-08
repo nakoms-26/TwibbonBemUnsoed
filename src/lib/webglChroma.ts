@@ -45,27 +45,45 @@ const FRAGMENT_SHADER = `
   void main() {
     vec4 vidColor = texture2D(u_video, v_texCoord);
     
-    // Menggunakan ruang warna YCbCr untuk chroma key yang lebih akurat (mengabaikan perbedaan cahaya/shadow)
-    float Cb1 = -0.1687 * vidColor.r - 0.3313 * vidColor.g + 0.5 * vidColor.b + 0.5;
-    float Cr1 = 0.5 * vidColor.r - 0.4187 * vidColor.g - 0.0813 * vidColor.b + 0.5;
-    
-    float Cb2 = -0.1687 * u_keyColor.r - 0.3313 * u_keyColor.g + 0.5 * u_keyColor.b + 0.5;
-    float Cr2 = 0.5 * u_keyColor.r - 0.4187 * u_keyColor.g - 0.0813 * u_keyColor.b + 0.5;
+    // YCbCr chroma distance — keying berbasis warna saja, tidak terpengaruh cahaya/bayangan
+    float Cb1 = -0.1687 * vidColor.r - 0.3313 * vidColor.g + 0.5    * vidColor.b + 0.5;
+    float Cr1 =  0.5    * vidColor.r - 0.4187 * vidColor.g - 0.0813 * vidColor.b + 0.5;
+
+    float Cb2 = -0.1687 * u_keyColor.r - 0.3313 * u_keyColor.g + 0.5    * u_keyColor.b + 0.5;
+    float Cr2 =  0.5    * u_keyColor.r - 0.4187 * u_keyColor.g - 0.0813 * u_keyColor.b + 0.5;
     
     float dist = distance(vec2(Cb1, Cr1), vec2(Cb2, Cr2));
     float alpha = smoothstep(u_similarity, u_similarity + u_smoothness, dist);
-    
+
+    // ── Spill Suppression ──────────────────────────────────────────────────
+    // Di area tepi (semi-transparan), warna layar sering "bocor" ke subjek.
+    // Teknik ini membatasi channel warna kunci agar tidak melebihi channel lain.
+    float keyMax = max(u_keyColor.r, max(u_keyColor.g, u_keyColor.b));
+    float spillAmount = clamp(1.0 - alpha, 0.0, 1.0);
+    vec3 corrected = vidColor.rgb;
+
+    if (u_keyColor.g >= keyMax) {
+      // Green screen: batasi green agar tidak melebihi max(red, blue)
+      corrected.g = mix(corrected.g, min(corrected.g, max(corrected.r, corrected.b)), spillAmount);
+    } else if (u_keyColor.b >= keyMax) {
+      // Blue screen: batasi blue
+      corrected.b = mix(corrected.b, min(corrected.b, max(corrected.r, corrected.g)), spillAmount);
+    } else {
+      // Red screen: batasi red
+      corrected.r = mix(corrected.r, min(corrected.r, max(corrected.g, corrected.b)), spillAmount);
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     if (u_hasImage) {
       vec2 imgUV = vec2(
         u_crop.x + v_texCoord.x * u_crop.z,
         u_crop.y + v_texCoord.y * u_crop.w
       );
       vec4 imgColor = texture2D(u_image, imgUV);
-      // Blend video over image
-      vec3 finalColor = mix(imgColor.rgb, vidColor.rgb, alpha);
+      vec3 finalColor = mix(imgColor.rgb, corrected, alpha);
       gl_FragColor = vec4(finalColor, 1.0);
     } else {
-      gl_FragColor = vec4(vidColor.rgb, alpha);
+      gl_FragColor = vec4(corrected, alpha);
     }
   }
 `;
@@ -192,7 +210,7 @@ export function renderChromaKey(
   const [r, g, b] = hexToRgb(chromaColorHex);
   gl.uniform3f(uKeyColor, r, g, b);
   gl.uniform1f(uSimilarity, 0.15);
-  gl.uniform1f(uSmoothness, 0.1);
+  gl.uniform1f(uSmoothness, 0.15);
 
   // Bind image to texture unit 1 (if provided)
   if (userImg && crop) {

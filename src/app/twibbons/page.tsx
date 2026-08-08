@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { mockTwibbons } from "@/lib/mockData";
 import Link from "next/link";
 import { Metadata } from "next";
 import TwibbonCard from "@/components/TwibbonCard";
@@ -20,10 +20,7 @@ export const metadata: Metadata = {
 export const revalidate = 0;
 
 export default async function PublicTwibbonsCatalogPage() {
-  const twibbons = await prisma.twibbon.findMany({
-    where: { isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const twibbons = mockTwibbons; // MOCK DATA
 
   return (
     <div
