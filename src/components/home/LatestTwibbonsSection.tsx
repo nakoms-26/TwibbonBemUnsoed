@@ -14,7 +14,10 @@ const archivoBlack = Archivo_Black({
 export default async function LatestTwibbonsSection() {
   const dbCounts = await prisma.twibbon.findMany({
     select: { id: true, downloadsCount: true }
-  }).catch(() => []);
+  }).catch((err) => {
+    console.error("PRISMA ERROR IN LATEST TWIBBONS:", err);
+    return [];
+  });
 
   const twibbons = mockTwibbons.slice(0, 4).map(t => {
     const dbData = dbCounts.find(db => db.id === t.id);
