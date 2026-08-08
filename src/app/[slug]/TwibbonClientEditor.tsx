@@ -304,8 +304,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           // Video Encoder (H.264)
 
           const videoEncoder = new VideoEncoder({
-            output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-            error: (e) => { throw e; },
+            output: (chunk, meta) => {
+              if (videoEncoder.state === 'configured') muxer.addVideoChunk(chunk, meta);
+            },
+            error: (e) => { console.error("VideoEncoder Error:", e); },
           });
           videoEncoder.configure({
             codec: 'avc1.42E01F', // H.264 Constrained Baseline Profile, Level 3.1 (Lebih ringan untuk HP lama)
@@ -406,7 +408,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               duration: FRAME_DURATION_US,
             });
             const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
-            videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+            if (videoEncoder.state === 'configured') {
+              videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+            }
             videoFrame.close();
             frameCount++;
 
@@ -429,8 +433,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 isRecordingStarted = false;
 
                 // Flush semua encoder (tunggu sisa antrean diproses)
-                await videoEncoder.flush();
-                if (audioEncoder) await audioEncoder.flush();
+                if (videoEncoder.state === 'configured') {
+                  await videoEncoder.flush();
+                }
+                if (audioEncoder && audioEncoder.state === 'configured') {
+                  await audioEncoder.flush();
+                }
                 
                 // Baru aman untuk finalize
                 muxer.finalize();
