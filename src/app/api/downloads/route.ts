@@ -56,9 +56,16 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error tracking download:", error);
+    const err = error as Error;
+    console.error("=== DOWNLOADS API ERROR ===");
+    console.error("Message:", err?.message);
+    console.error("Name:", err?.name);
+    console.error("Stack:", err?.stack);
+    console.error("DATABASE_URL set:", !!process.env.DATABASE_URL);
+    console.error("DATABASE_URL prefix:", process.env.DATABASE_URL?.substring(0, 20));
+    console.error("===========================");
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", detail: err?.message },
       { status: 500 }
     );
   }
