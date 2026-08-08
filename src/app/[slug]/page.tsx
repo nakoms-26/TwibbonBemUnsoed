@@ -80,6 +80,14 @@ export default async function PublicTwibbonPage({
     notFound();
   }
 
+  // Ambil downloadsCount real dari DB
+  const dbData = await prisma.twibbon.findUnique({
+    where: { id: twibbon.id },
+    select: { downloadsCount: true },
+  }).catch(() => null);
+
+  const downloadsCount = dbData?.downloadsCount ?? twibbon.downloadsCount;
+
   // Serialize to pass to client component safely
   const serializedTwibbon = {
     id: twibbon.id,
@@ -88,7 +96,7 @@ export default async function PublicTwibbonPage({
     description: twibbon.description,
     type: twibbon.type,
     overlayFile: twibbon.overlayFile,
-    downloadsCount: twibbon.downloadsCount,
+    downloadsCount,
     config: typeof twibbon.config === 'string'
       ? JSON.parse(twibbon.config as string)
       : twibbon.config,
