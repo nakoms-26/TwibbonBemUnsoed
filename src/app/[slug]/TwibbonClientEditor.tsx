@@ -324,10 +324,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             codec: 'avc1.42E028', // H.264 Constrained Baseline Profile, Level 4.0 (Wajib untuk 1080x1350)
             width: encodeWidth,
             height: encodeHeight,
-            bitrate: 2_500_000, // 2.5 Mbps (Cukup untuk 1080p web, hemat resource)
+            bitrate: 5_000_000, // 5 Mbps (Kualitas tinggi, anti pecah)
             framerate: 30,
             hardwareAcceleration: 'prefer-hardware', // Paksa pakai GPU bawaan hp
-            latencyMode: 'realtime', // Hemat memori saat render
+            latencyMode: 'quality', // Utamakan kualitas gambar daripada kecepatan render
             avc: { format: 'avc' }
           });
 
@@ -359,7 +359,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               });
 
               // Muat AudioWorklet processor dari /public — berjalan di audio thread
-              await audioContext.audioWorklet.addModule('/audio-capture-processor.js');
+              try {
+                await audioContext.audioWorklet.addModule('/audio-capture-processor.js');
+              } catch (err) {
+                // Abaikan error jika module sudah pernah di-load di konteks ini
+                console.log("AudioWorklet module mungkin sudah ada:", err);
+              }
               audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
 
               // Terima data PCM dari audio thread (zero-copy via Transferable),
