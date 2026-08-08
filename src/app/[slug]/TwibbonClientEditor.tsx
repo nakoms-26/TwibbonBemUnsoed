@@ -276,7 +276,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         const chromaCanvas = document.createElement('canvas');
         chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
         // Init WebGL chroma key context untuk recording
-        const { initWebGL: initGL, renderChromaKey: renderGL, destroyWebGL } = await import('@/lib/webglChroma');
+        const { initWebGL: initGL, renderChromaKey: renderGL, destroyWebGL, flushWebGL: flushGL } = await import('@/lib/webglChroma');
         
         initGL(chromaCanvas);
 
@@ -327,7 +327,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             bitrate: 5_000_000, // 5 Mbps (Kualitas tinggi, anti pecah)
             framerate: 30,
             hardwareAcceleration: 'prefer-hardware', // Paksa pakai GPU bawaan hp
-            latencyMode: 'quality', // Utamakan kualitas gambar daripada kecepatan render
+            latencyMode: 'quality', // Kualitas maksimal — render lebih lama di device lambat, tapi tidak ada frame drop
             avc: { format: 'avc' }
           });
 
@@ -415,6 +415,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               w: croppedAreaPixels.width,
               h: croppedAreaPixels.height,
             }, chromaColor, isAlphaVideo);
+            // Pastikan GPU selesai render sebelum frame di-capture
+            // (tanpa ini, VideoFrame bisa menangkap canvas yang belum selesai digambar)
+            flushGL();
 
             // Ambil frame dari canvas dan encode ke H.264
             // Gunakan selisih mediaTime asli agar durasi video cocok dengan audio meskipun ada frame drop
@@ -426,6 +429,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               alpha: 'discard'
             });
             const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
+            // Selalu encode semua frame — tidak ada drop.
+            // Backpressure ditangani dengan pause video di captureFrame/rafLoop.
             if (videoEncoder.state === 'configured') {
               videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
             }
@@ -509,9 +514,28 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   }
                   lastProcessed = meta.mediaTime;
                   try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
+
                   if (!videoElement.ended) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (videoElement as any).requestVideoFrameCallback(captureFrame);
+                    // Jika encoder masih penuh (quality mode butuh waktu lebih lama),
+                    // pause video dulu — tunggu antrean kosong — lalu resume.
+                    // Hasilnya: TIDAK ADA frame drop, kualitas maksimal, render lebih lama.
+                    if (videoEncoder.encodeQueueSize >= 6) {
+                      videoElement.pause();
+                      const waitForEncoder = () => {
+                        if (videoEncoder.encodeQueueSize < 3) {
+                          videoElement.play()
+                            .catch(reject)
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            .then(() => (videoElement as any).requestVideoFrameCallback(captureFrame));
+                        } else {
+                          setTimeout(waitForEncoder, 12);
+                        }
+                      };
+                      setTimeout(waitForEncoder, 12);
+                    } else {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      (videoElement as any).requestVideoFrameCallback(captureFrame);
+                    }
                   }
                 };
                 videoElement.onended = () => finish();
@@ -538,6 +562,22 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   if (t - lastProcessed >= 1 / FPS) {
                     lastProcessed = t;
                     try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
+                  }
+
+                  // Pause video jika encoder penuh — tunggu antrean kosong sebelum lanjut
+                  if (videoEncoder.encodeQueueSize >= 6 && !videoElement.paused) {
+                    cancelAnimationFrame(rafId);
+                    videoElement.pause();
+                    const waitForEncoder = () => {
+                      if (videoEncoder.encodeQueueSize < 3) {
+                        videoElement.play().catch(() => {});
+                        rafId = requestAnimationFrame(rafLoop);
+                      } else {
+                        setTimeout(waitForEncoder, 12);
+                      }
+                    };
+                    setTimeout(waitForEncoder, 12);
+                    return;
                   }
                   rafId = requestAnimationFrame(rafLoop);
                 };
@@ -577,6 +617,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               x: croppedAreaPixels.x, y: croppedAreaPixels.y,
               w: croppedAreaPixels.width, h: croppedAreaPixels.height,
             }, chromaColor, isAlphaVideo);
+            // Pastikan GPU selesai render sebelum frame di-capture ke MediaRecorder stream
+            flushGL();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (supportsManualCapture) (videoTrack as any).requestFrame();
             if (duration > 0) {
