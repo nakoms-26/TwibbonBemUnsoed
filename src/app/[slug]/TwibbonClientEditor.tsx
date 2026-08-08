@@ -42,6 +42,15 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   // State untuk loading progress video overlay
   const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
   const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
+
+  // Catat kunjungan ke database saat komponen pertama kali dimuat
+  useEffect(() => {
+    fetch("/api/downloads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ twibbonId: twibbon.id }),
+    }).catch(console.error);
+  }, [twibbon.id]);
   const [showSafariWarning, setShowSafariWarning] = useState(false);
 
   useEffect(() => {
@@ -1049,13 +1058,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               <a
                 href={resultUrl}
                 download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? (videoMimeType.startsWith('video/mp4') ? 'mp4' : 'webm') : "png"}`}
-                onClick={() => {
-                  fetch("/api/downloads", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ twibbonId: twibbon.id }),
-                  }).catch(console.error);
-                }}
                 className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
                 style={{
                   background: "#FDB927",
