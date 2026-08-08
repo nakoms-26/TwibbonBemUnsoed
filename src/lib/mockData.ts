@@ -32,7 +32,7 @@ Mari berkolaborasi bersama BEM Unsoed, untuk menciptakan aksi dan perubahan nyat
     slug: "SoedirmanStudentSummit2026",
     description: "Twibbon resmi untuk mahasiswa baru Unsoed angkatan 2026.",
     type: "VIDEO",
-    overlayFile: "/twibbon/overlay_s3.mp4",
+    overlayFile: "/twibbon/overlay_s3.webm",
     thumbnail: "/twibbon/thumbnail_s3.jpg",
     config: {
       overlayOpacity: 1,

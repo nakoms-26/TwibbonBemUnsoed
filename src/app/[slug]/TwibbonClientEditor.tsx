@@ -38,6 +38,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   // Mime type yang dipakai saat recording — menentukan ekstensi file download
   const [videoMimeType, setVideoMimeType] = useState<string>('video/mp4');
   const isVideo = twibbon.type === "VIDEO";
+  const isAlphaVideo = isVideo && typeof twibbon.overlayFile === 'string' && twibbon.overlayFile.toLowerCase().endsWith('.webm');
   // State untuk loading progress video overlay
   const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
   const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
@@ -153,7 +154,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             } else if (typeof raw === 'string' && raw.startsWith('#')) {
               chromaColor = raw;
             }
-            renderChromaKey(video, canvas, undefined, undefined, chromaColor);
+            renderChromaKey(video, canvas, undefined, undefined, chromaColor, isAlphaVideo);
           } catch (e) {
             console.error("Chroma key render error:", e);
           }
@@ -394,7 +395,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               y: croppedAreaPixels.y,
               w: croppedAreaPixels.width,
               h: croppedAreaPixels.height,
-            }, chromaColor);
+            }, chromaColor, isAlphaVideo);
 
             // Ambil frame dari canvas dan encode ke H.264
             // Gunakan selisih mediaTime asli agar durasi video cocok dengan audio meskipun ada frame drop
@@ -548,7 +549,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             renderGL(videoElement, chromaCanvas, userImg, {
               x: croppedAreaPixels.x, y: croppedAreaPixels.y,
               w: croppedAreaPixels.width, h: croppedAreaPixels.height,
-            }, chromaColor);
+            }, chromaColor, isAlphaVideo);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (supportsManualCapture) (videoTrack as any).requestFrame();
             if (duration > 0) {

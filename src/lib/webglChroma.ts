@@ -17,6 +17,7 @@ let uSmoothness: WebGLUniformLocation | null = null;
 let uHasImage: WebGLUniformLocation | null = null;
 let uImage: WebGLUniformLocation | null = null;
 let uCrop: WebGLUniformLocation | null = null;
+let uIsAlphaVideo: WebGLUniformLocation | null = null;
 let aPosition = -1;
 let aTexCoord = -1;
 
@@ -41,6 +42,7 @@ const FRAGMENT_SHADER = `
   uniform vec3 u_keyColor;
   uniform float u_similarity;
   uniform float u_smoothness;
+  uniform bool u_isAlphaVideo;
   
   void main() {
     vec4 vidColor = texture2D(u_video, v_texCoord);
@@ -53,24 +55,26 @@ const FRAGMENT_SHADER = `
     float Cr2 =  0.5    * u_keyColor.r - 0.4187 * u_keyColor.g - 0.0813 * u_keyColor.b + 0.5;
     
     float dist = distance(vec2(Cb1, Cr1), vec2(Cb2, Cr2));
-    float alpha = smoothstep(u_similarity, u_similarity + u_smoothness, dist);
+    float computedAlpha = smoothstep(u_similarity, u_similarity + u_smoothness, dist);
 
-    // ── Spill Suppression ──────────────────────────────────────────────────
-    // Di area tepi (semi-transparan), warna layar sering "bocor" ke subjek.
-    // Teknik ini membatasi channel warna kunci agar tidak melebihi channel lain.
-    float keyMax = max(u_keyColor.r, max(u_keyColor.g, u_keyColor.b));
-    float spillAmount = clamp(1.0 - alpha, 0.0, 1.0);
+    float finalAlpha = u_isAlphaVideo ? vidColor.a : computedAlpha;
     vec3 corrected = vidColor.rgb;
 
-    if (u_keyColor.g >= keyMax) {
-      // Green screen: batasi green agar tidak melebihi max(red, blue)
-      corrected.g = mix(corrected.g, min(corrected.g, max(corrected.r, corrected.b)), spillAmount);
-    } else if (u_keyColor.b >= keyMax) {
-      // Blue screen: batasi blue
-      corrected.b = mix(corrected.b, min(corrected.b, max(corrected.r, corrected.g)), spillAmount);
-    } else {
-      // Red screen: batasi red
-      corrected.r = mix(corrected.r, min(corrected.r, max(corrected.g, corrected.b)), spillAmount);
+    // ── Spill Suppression (Hanya untuk Chroma Key) ────────────────────────
+    if (!u_isAlphaVideo) {
+      float keyMax = max(u_keyColor.r, max(u_keyColor.g, u_keyColor.b));
+      float spillAmount = clamp(1.0 - computedAlpha, 0.0, 1.0);
+
+      if (u_keyColor.g >= keyMax) {
+        // Green screen: batasi green agar tidak melebihi max(red, blue)
+        corrected.g = mix(corrected.g, min(corrected.g, max(corrected.r, corrected.b)), spillAmount);
+      } else if (u_keyColor.b >= keyMax) {
+        // Blue screen: batasi blue
+        corrected.b = mix(corrected.b, min(corrected.b, max(corrected.r, corrected.g)), spillAmount);
+      } else {
+        // Red screen: batasi red
+        corrected.r = mix(corrected.r, min(corrected.r, max(corrected.g, corrected.b)), spillAmount);
+      }
     }
     // ──────────────────────────────────────────────────────────────────────
 
@@ -80,10 +84,11 @@ const FRAGMENT_SHADER = `
         u_crop.y + v_texCoord.y * u_crop.w
       );
       vec4 imgColor = texture2D(u_image, imgUV);
-      vec3 finalColor = mix(imgColor.rgb, corrected, alpha);
+      vec3 finalColor = mix(imgColor.rgb, corrected, finalAlpha);
       gl_FragColor = vec4(finalColor, 1.0);
     } else {
-      gl_FragColor = vec4(corrected, alpha);
+      // Premultiply alpha output jika untuk canvas agar komposit benar
+      gl_FragColor = vec4(corrected * finalAlpha, finalAlpha);
     }
   }
 `;
@@ -126,6 +131,7 @@ export function initWebGL(canvas: HTMLCanvasElement) {
   uHasImage   = gl.getUniformLocation(shaderProgram, "u_hasImage");
   uImage      = gl.getUniformLocation(shaderProgram, "u_image");
   uCrop       = gl.getUniformLocation(shaderProgram, "u_crop");
+  uIsAlphaVideo = gl.getUniformLocation(shaderProgram, "u_isAlphaVideo");
   aPosition   = gl.getAttribLocation(shaderProgram, "a_position");
   aTexCoord   = gl.getAttribLocation(shaderProgram, "a_texCoord");
 
@@ -184,7 +190,8 @@ export function renderChromaKey(
   canvas: HTMLCanvasElement,
   userImg?: HTMLImageElement,
   crop?: { x: number, y: number, w: number, h: number },
-  chromaColorHex: string = "#00FF00"
+  chromaColorHex: string = "#00FF00",
+  isAlphaVideo: boolean = false
 ) {
   if (!glContext || !shaderProgram || glContext.canvas !== canvas) {
     initWebGL(canvas);
@@ -211,6 +218,7 @@ export function renderChromaKey(
   gl.uniform3f(uKeyColor, r, g, b);
   gl.uniform1f(uSimilarity, 0.15);
   gl.uniform1f(uSmoothness, 0.15);
+  gl.uniform1i(uIsAlphaVideo, isAlphaVideo ? 1 : 0);
 
   // Bind image to texture unit 1 (if provided)
   if (userImg && crop) {
@@ -262,6 +270,7 @@ export function destroyWebGL() {
     // Reset cached locations juga
     uVideo = null; uKeyColor = null; uSimilarity = null;
     uSmoothness = null; uHasImage = null; uImage = null; uCrop = null;
+    uIsAlphaVideo = null;
     aPosition = -1; aTexCoord = -1;
   }
 }
