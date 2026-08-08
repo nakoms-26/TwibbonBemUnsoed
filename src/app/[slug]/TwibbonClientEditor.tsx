@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { renderChromaKey } from "@/lib/webglChroma";
-import { Upload, RefreshCw, Copy, Download, CheckCircle } from "lucide-react";
+import { Upload, RefreshCw, Copy, Download, CheckCircle, AlertTriangle } from "lucide-react";
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -42,6 +42,17 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   // State untuk loading progress video overlay
   const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
   const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
+  const [showSafariWarning, setShowSafariWarning] = useState(false);
+
+  useEffect(() => {
+    if (isAlphaVideo) {
+      // Deteksi Safari (termasuk iOS Safari) tapi bukan Chrome/Edge yang pakai WebKit
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      if (isSafari) {
+        setShowSafariWarning(true);
+      }
+    }
+  }, [isAlphaVideo]);
 
   // Audio Context refs to bypass mobile audio restrictions and prevent double-creation
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -642,6 +653,19 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     <div className="flex flex-col md:flex-row items-center md:items-start justify-center gap-8 md:gap-12 max-w-6xl mx-auto">
       {/* Kiri: Canvas / Preview Stage */}
       <div className="w-full flex-1 flex flex-col items-center justify-center">
+        
+        {/* Warning khusus Safari */}
+        {showSafariWarning && (
+          <div className="w-full max-w-2xl mb-4 bg-red-100/10 border border-red-500/30 rounded-2xl p-4 flex gap-4 items-start backdrop-blur-sm">
+            <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={24} />
+            <div>
+              <h4 className="font-bold text-red-400 text-sm mb-1">Perhatian untuk Pengguna Safari/iPhone</h4>
+              <p className="text-red-300/80 text-xs leading-relaxed">
+                Browser Anda (Safari) tidak mendukung format video transparan ini, sehingga layar akan terlihat hitam.
+              </p>
+            </div>
+          </div>
+        )}
         {resultUrl ? (
           <div
             className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden shadow-xl"
