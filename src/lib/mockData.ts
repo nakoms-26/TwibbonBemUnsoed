@@ -29,7 +29,7 @@ Mari berkolaborasi bersama BEM Unsoed, untuk menciptakan aksi dan perubahan nyat
   {
     id: 2,
     title: "Soedirman Student Summit 2026",
-    slug: "SoedirmanStudentSummit2026",
+    slug: "S3",
     description: "Twibbon resmi untuk mahasiswa baru Unsoed angkatan 2026.",
     type: "VIDEO",
     overlayFile: "/twibbon/overlay_s3.webm",
@@ -38,24 +38,6 @@ Mari berkolaborasi bersama BEM Unsoed, untuk menciptakan aksi dan perubahan nyat
       overlayOpacity: 1,
       framePosition: "cover",
       chromaColor: "#00FF00",
-    },
-    isActive: true,
-    createdAt: new Date(Date.now() - 86400000), // yesterday
-    updatedAt: new Date(),
-    downloadsCount: 3000,
-  },
-  {
-    id: 3,
-    title: "Soedirman Student Summit 2026",
-    slug: "SoedirmanStudentSummitungu",
-    description: "Twibbon resmi untuk mahasiswa baru Unsoed angkatan 2026.",
-    type: "VIDEO",
-    overlayFile: "/twibbon/ungu.mp4",
-    thumbnail: "/twibbon/thumbnail_s3.jpg",
-    config: {
-      overlayOpacity: 1,
-      framePosition: "cover",
-      chromaColor: "#8d01be",
     },
     isActive: true,
     createdAt: new Date(Date.now() - 86400000), // yesterday

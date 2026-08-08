@@ -308,12 +308,13 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             error: (e) => { throw e; },
           });
           videoEncoder.configure({
-            codec: 'avc1.4d002a', // H.264 Main Profile, Level 4.2
+            codec: 'avc1.42E01F', // H.264 Constrained Baseline Profile, Level 3.1 (Lebih ringan untuk HP lama)
             width: encodeWidth,
             height: encodeHeight,
-            bitrate: 4_000_000,
+            bitrate: 2_500_000, // 2.5 Mbps (Cukup untuk 1080p web, hemat resource)
             framerate: 30,
-            latencyMode: 'quality',
+            hardwareAcceleration: 'prefer-hardware', // Paksa pakai GPU bawaan hp
+            latencyMode: 'realtime', // Hemat memori saat render
             avc: { format: 'avc' }
           });
 
@@ -541,7 +542,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             if (audioStream) audioStream.getAudioTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
           } catch (e) { console.warn('Audio tidak tersedia:', e); }
 
-          const recorder = new MediaRecorder(combinedStream, { mimeType: selectedMime, videoBitsPerSecond: 3_000_000 });
+          const recorder = new MediaRecorder(combinedStream, { mimeType: selectedMime, videoBitsPerSecond: 2_000_000 });
           const chunks: Blob[] = [];
           recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
