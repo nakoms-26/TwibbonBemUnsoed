@@ -15,6 +15,7 @@ try {
   console.log('✅ SUCCESS: Berhasil konek!', result);
 } catch (err) {
   console.error('❌ GAGAL:', err.message);
+  console.error('Error code:', err.errorCode);
 } finally {
   await prisma.$disconnect();
 }
