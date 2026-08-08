@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 menit
@@ -34,18 +35,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // Save to DB
-
-    await prisma.twibbon.update({
+    // Increment dan ambil slug sekaligus untuk revalidasi cache
+    const updated = await prisma.twibbon.update({
       where: { id: Number(twibbonId) },
       data: {
         downloadsCount: {
           increment: 1,
         },
       },
+      select: { slug: true, downloadsCount: true },
     });
 
-    return NextResponse.json({ success: true }, { status: 201 });
+    // Bust Next.js cache agar halaman slug menampilkan angka terbaru
+    revalidatePath(`/${updated.slug}`);
+    revalidatePath("/twibbons");
+    revalidatePath("/");
+
+    return NextResponse.json(
+      { success: true, downloadsCount: updated.downloadsCount },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error tracking download:", error);
     return NextResponse.json(
@@ -54,3 +63,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

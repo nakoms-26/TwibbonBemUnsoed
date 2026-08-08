@@ -1,4 +1,4 @@
-import { mockTwibbons } from "@/lib/mockData";
+import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import TwibbonClientEditor from "./TwibbonClientEditor";
 import Navbar from "@/components/Navbar";
@@ -20,10 +20,12 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  
-  const twibbon = mockTwibbons.find(t => t.slug === slug);
 
-  if (!twibbon || !twibbon.isActive) {
+  const twibbon = await prisma.twibbon.findUnique({
+    where: { slug, isActive: true },
+  });
+
+  if (!twibbon) {
     return {
       title: "Kampanye Tidak Ditemukan - BEM Unsoed",
     };
@@ -31,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const baseUrl = "https://www.twibbon.bem-unsoed.com";
   const timestamp = twibbon.updatedAt ? `?t=${new Date(twibbon.updatedAt).getTime()}` : "";
-  const imageUrl = twibbon.thumbnail 
+  const imageUrl = twibbon.thumbnail
     ? (twibbon.thumbnail.startsWith('http') ? `${twibbon.thumbnail}${timestamp}` : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
     : `${baseUrl}/logo.png`;
 
@@ -66,16 +68,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function PublicTwibbonPage({ 
-  params 
-}: { 
-  params: Promise<{ slug: string }> 
+export default async function PublicTwibbonPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
 
-  const twibbon = mockTwibbons.find(t => t.slug === slug);
+  const twibbon = await prisma.twibbon.findUnique({
+    where: { slug, isActive: true },
+  });
 
-  if (!twibbon || !twibbon.isActive) {
+  if (!twibbon) {
     notFound();
   }
 
@@ -87,7 +91,10 @@ export default async function PublicTwibbonPage({
     description: twibbon.description,
     type: twibbon.type,
     overlayFile: twibbon.overlayFile,
-    config: typeof twibbon.config === 'string' ? JSON.parse(twibbon.config) : twibbon.config,
+    downloadsCount: twibbon.downloadsCount,
+    config: typeof twibbon.config === 'string'
+      ? JSON.parse(twibbon.config as string)
+      : twibbon.config,
   };
 
   return (
@@ -110,15 +117,18 @@ export default async function PublicTwibbonPage({
       <main className="pt-28 md:pt-36 pb-12 px-4 sm:px-6 lg:px-8 relative z-10 flex-1">
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="text-center mb-6 md:mb-10 flex flex-col items-center">
-            <h1 
+            <h1
               className={`text-3xl md:text-5xl uppercase tracking-tight mb-2 ${archivoBlack.className}`}
-              style={{ 
+              style={{
                 color: "#FDB927",
                 textShadow: "6px 6px 0px #0a031e",
               }}
             >
               {twibbon.title}
             </h1>
+            <p className="text-sm font-semibold mt-1" style={{ color: "rgba(237,233,254,0.7)" }}>
+              🎯 {twibbon.downloadsCount.toLocaleString("id-ID")} kali digunakan
+            </p>
           </div>
 
           <div className="w-full">

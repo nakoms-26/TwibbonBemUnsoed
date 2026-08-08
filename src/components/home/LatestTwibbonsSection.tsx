@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { mockTwibbons } from "@/lib/mockData";
+import prisma from "@/lib/prisma";
 import LatestTwibbonsCarousel from "./LatestTwibbonsCarousel";
 import { ArrowRight } from "lucide-react";
 import { Archivo_Black } from "next/font/google";
@@ -11,7 +11,21 @@ const archivoBlack = Archivo_Black({
 });
 
 export default async function LatestTwibbonsSection() {
-  const twibbons = mockTwibbons.slice(0, 4); // MOCK DATA
+  const twibbons = await prisma.twibbon.findMany({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+    take: 4,
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      thumbnail: true,
+      type: true,
+      downloadsCount: true,
+      createdAt: true,
+    },
+  });
 
   if (twibbons.length === 0) return null;
 
