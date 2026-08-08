@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { mockTwibbons } from "@/lib/mockData";
 import { notFound } from "next/navigation";
 import TwibbonClientEditor from "./TwibbonClientEditor";
 import Navbar from "@/components/Navbar";
@@ -21,9 +22,7 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  const twibbon = await prisma.twibbon.findUnique({
-    where: { slug, isActive: true },
-  });
+  const twibbon = mockTwibbons.find(t => t.slug === slug && t.isActive);
 
   if (!twibbon) {
     return {
@@ -75,9 +74,7 @@ export default async function PublicTwibbonPage({
 }) {
   const { slug } = await params;
 
-  const twibbon = await prisma.twibbon.findUnique({
-    where: { slug, isActive: true },
-  });
+  const twibbon = mockTwibbons.find(t => t.slug === slug && t.isActive);
 
   if (!twibbon) {
     notFound();
