@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { mockTwibbons } from "@/lib/mockData";
 import { notFound } from "next/navigation";
 import TwibbonClientEditor from "./TwibbonClientEditor";
 import Navbar from "@/components/Navbar";
@@ -18,17 +19,23 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
-
-  let twibbon;
+/** Ambil twibbon dari DB (pakai findFirst agar bisa filter isActive),
+ *  fallback ke mockData jika DB tidak tersedia. */
+async function getTwibbon(slug: string) {
   try {
-    twibbon = await prisma.twibbon.findUnique({
+    const dbRow = await prisma.twibbon.findFirst({
       where: { slug, isActive: true },
     });
+    if (dbRow) return dbRow;
   } catch {
-    twibbon = null;
+    // DB tidak tersedia — gunakan mock
   }
+  return mockTwibbons.find((t) => t.slug === slug && t.isActive) ?? null;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const twibbon = await getTwibbon(slug);
 
   if (!twibbon) {
     return {
@@ -39,11 +46,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const baseUrl = "https://www.twibbon.bem-unsoed.com";
   const timestamp = twibbon.updatedAt ? `?t=${new Date(twibbon.updatedAt).getTime()}` : "";
   const imageUrl = twibbon.thumbnail
-    ? (twibbon.thumbnail.startsWith('http') ? `${twibbon.thumbnail}${timestamp}` : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
+    ? (twibbon.thumbnail.startsWith("http")
+        ? `${twibbon.thumbnail}${timestamp}`
+        : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
     : `${baseUrl}/logo.png`;
 
   const pageTitle = `${twibbon.title.toUpperCase()} - BEM Unsoed`;
-  const pageDesc = twibbon.description || `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk pasang foto kamu.`;
+  const pageDesc =
+    twibbon.description ||
+    `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk pasang foto kamu.`;
 
   return {
     title: pageTitle,
@@ -79,16 +90,7 @@ export default async function PublicTwibbonPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-
-  // Baca langsung dari DB — ID real dari Supabase, bukan dari mock
-  let twibbon;
-  try {
-    twibbon = await prisma.twibbon.findUnique({
-      where: { slug, isActive: true },
-    });
-  } catch {
-    twibbon = null;
-  }
+  const twibbon = await getTwibbon(slug);
 
   if (!twibbon) {
     notFound();
@@ -105,9 +107,10 @@ export default async function PublicTwibbonPage({
     type: twibbon.type,
     overlayFile: twibbon.overlayFile,
     downloadsCount,
-    config: typeof twibbon.config === 'string'
-      ? JSON.parse(twibbon.config as string)
-      : twibbon.config,
+    config:
+      typeof twibbon.config === "string"
+        ? JSON.parse(twibbon.config as string)
+        : twibbon.config,
   };
 
   return (
