@@ -1,8 +1,8 @@
 export const mockTwibbons = [
   {
     id: 1,
-    title: "[OPEN RECRUITMENT STAF BEM UNSOED 2026]",
-    slug: "oprec-bem-unsoed-2026",
+    title: "OPEN RECRUITMENT STAF BEM UNSOED 2026",
+    slug: "OprecBEMUnsoed2026",
     description: `[OPEN RECRUITMENT STAF BEM UNSOED 2026]
 
 Halo, Soedirman muda!
@@ -19,12 +19,12 @@ Mari berkolaborasi bersama BEM Unsoed, untuk menciptakan aksi dan perubahan nyat
 #JoinBEMUnsoed2026`,
     type: "IMAGE",
     overlayFile: "/twibbon/overlay_oprec.png",
-    thumbnail: "/twibbon/thumbnailoprec.webp",
+    thumbnail: "/twibbon/thumbnail_oprec.png",
     config: { overlayOpacity: 1, framePosition: "cover" },
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-    downloadsCount: 1250,
+    downloadsCount: 531,
   },
   {
     id: 2,
@@ -40,8 +40,8 @@ Mari berkolaborasi bersama BEM Unsoed, untuk menciptakan aksi dan perubahan nyat
       chromaColor: "#00FF00",
     },
     isActive: true,
-    createdAt: new Date(Date.now() - 86400000), // yesterday
+    createdAt: new Date(Date.now() - 86400000),
     updatedAt: new Date(),
-    downloadsCount: 3000,
+    downloadsCount: 1583,
   },
 ];
