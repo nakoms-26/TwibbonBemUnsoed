@@ -1,5 +1,4 @@
 import prisma from "@/lib/prisma";
-import { mockTwibbons } from "@/lib/mockData";
 import { notFound } from "next/navigation";
 import TwibbonClientEditor from "./TwibbonClientEditor";
 import Navbar from "@/components/Navbar";
@@ -22,7 +21,14 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  const twibbon = mockTwibbons.find(t => t.slug === slug && t.isActive);
+  let twibbon;
+  try {
+    twibbon = await prisma.twibbon.findUnique({
+      where: { slug, isActive: true },
+    });
+  } catch {
+    twibbon = null;
+  }
 
   if (!twibbon) {
     return {
@@ -74,19 +80,21 @@ export default async function PublicTwibbonPage({
 }) {
   const { slug } = await params;
 
-  const twibbon = mockTwibbons.find(t => t.slug === slug && t.isActive);
+  // Baca langsung dari DB — ID real dari Supabase, bukan dari mock
+  let twibbon;
+  try {
+    twibbon = await prisma.twibbon.findUnique({
+      where: { slug, isActive: true },
+    });
+  } catch {
+    twibbon = null;
+  }
 
   if (!twibbon) {
     notFound();
   }
 
-  // Ambil downloadsCount real dari DB
-  const dbData = await prisma.twibbon.findUnique({
-    where: { id: twibbon.id },
-    select: { downloadsCount: true },
-  }).catch(() => null);
-
-  const downloadsCount = dbData?.downloadsCount ?? twibbon.downloadsCount;
+  const downloadsCount = twibbon.downloadsCount;
 
   // Serialize to pass to client component safely
   const serializedTwibbon = {
@@ -131,9 +139,6 @@ export default async function PublicTwibbonPage({
             >
               {twibbon.title}
             </h1>
-            <p className="text-sm font-semibold mt-1" style={{ color: "rgba(237,233,254,0.7)" }}>
-              🎯 {downloadsCount.toLocaleString("id-ID")} kali digunakan
-            </p>
           </div>
 
           <div className="w-full">

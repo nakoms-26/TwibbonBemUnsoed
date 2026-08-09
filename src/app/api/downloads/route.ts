@@ -6,6 +6,31 @@ const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 menit
 const MAX_REQUESTS = 5; // Maks 5 download per menit
 
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const twibbonId = searchParams.get("twibbonId");
+
+    if (!twibbonId) {
+      return NextResponse.json({ error: "twibbonId is required" }, { status: 400 });
+    }
+
+    const twibbon = await prisma.twibbon.findUnique({
+      where: { id: Number(twibbonId) },
+      select: { downloadsCount: true },
+    });
+
+    if (!twibbon) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ downloadsCount: twibbon.downloadsCount });
+  } catch (error) {
+    const err = error as Error;
+    return NextResponse.json({ error: "Internal server error", detail: err?.message }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const forwardedFor = req.headers.get("x-forwarded-for");
@@ -70,4 +95,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
