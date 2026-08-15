@@ -18,18 +18,10 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-/** Ambil twibbon dari DB (pakai findFirst agar bisa filter isActive),
- *  fallback ke mockData jika DB tidak tersedia. */
 async function getTwibbon(slug: string) {
-  try {
-    const dbRow = await prisma.twibbon.findFirst({
-      where: { slug, isActive: true },
-    });
-    if (dbRow) return dbRow;
-  } catch {
-    // DB tidak tersedia — gunakan mock
-  }
-  return mockTwibbons.find((t) => t.slug === slug && t.isActive) ?? null;
+  return prisma.twibbon.findFirst({
+    where: { slug, isActive: true },
+  }).catch(() => null);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
