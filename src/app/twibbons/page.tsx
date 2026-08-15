@@ -1,4 +1,3 @@
-import { mockTwibbons } from "@/lib/mockData";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
 import { Metadata } from "next";
@@ -21,14 +20,10 @@ export const metadata: Metadata = {
 export const revalidate = 0;
 
 export default async function PublicTwibbonsCatalogPage() {
-  const dbCounts = await prisma.twibbon.findMany({
-    select: { id: true, downloadsCount: true }
+  const twibbons = await prisma.twibbon.findMany({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
   }).catch(() => []);
-
-  const twibbons = mockTwibbons.map(t => {
-    const dbData = dbCounts.find(db => db.id === t.id);
-    return { ...t, downloadsCount: dbData?.downloadsCount ?? t.downloadsCount };
-  });
 
   return (
     <div

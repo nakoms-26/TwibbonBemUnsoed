@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { mockTwibbons } from "@/lib/mockData";
 import prisma from "@/lib/prisma";
 import LatestTwibbonsCarousel from "./LatestTwibbonsCarousel";
 import { ArrowRight } from "lucide-react";
@@ -12,16 +11,13 @@ const archivoBlack = Archivo_Black({
 });
 
 export default async function LatestTwibbonsSection() {
-  const dbCounts = await prisma.twibbon.findMany({
-    select: { id: true, downloadsCount: true }
+  const twibbons = await prisma.twibbon.findMany({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+    take: 4,
   }).catch((err) => {
     console.error("PRISMA ERROR IN LATEST TWIBBONS:", err);
     return [];
-  });
-
-  const twibbons = mockTwibbons.slice(0, 4).map(t => {
-    const dbData = dbCounts.find(db => db.id === t.id);
-    return { ...t, downloadsCount: dbData?.downloadsCount ?? t.downloadsCount };
   });
 
   if (twibbons.length === 0) return null;

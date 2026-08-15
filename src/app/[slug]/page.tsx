@@ -1,5 +1,4 @@
 import prisma from "@/lib/prisma";
-import { mockTwibbons } from "@/lib/mockData";
 import { notFound } from "next/navigation";
 import TwibbonClientEditor from "./TwibbonClientEditor";
 import Navbar from "@/components/Navbar";
@@ -22,7 +21,9 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  const twibbon = mockTwibbons.find(t => t.slug === slug && t.isActive);
+  const twibbon = await prisma.twibbon.findUnique({
+    where: { slug, isActive: true },
+  }).catch(() => null);
 
   if (!twibbon) {
     return {
@@ -74,19 +75,13 @@ export default async function PublicTwibbonPage({
 }) {
   const { slug } = await params;
 
-  const twibbon = mockTwibbons.find(t => t.slug === slug && t.isActive);
+  const twibbon = await prisma.twibbon.findUnique({
+    where: { slug, isActive: true },
+  }).catch(() => null);
 
   if (!twibbon) {
     notFound();
   }
-
-  // Ambil downloadsCount real dari DB
-  const dbData = await prisma.twibbon.findUnique({
-    where: { id: twibbon.id },
-    select: { downloadsCount: true },
-  }).catch(() => null);
-
-  const downloadsCount = dbData?.downloadsCount ?? twibbon.downloadsCount;
 
   // Serialize to pass to client component safely
   const serializedTwibbon = {
@@ -96,7 +91,8 @@ export default async function PublicTwibbonPage({
     description: twibbon.description,
     type: twibbon.type,
     overlayFile: twibbon.overlayFile,
-    downloadsCount,
+    thumbnail: twibbon.thumbnail,
+    downloadsCount: twibbon.downloadsCount,
     config: typeof twibbon.config === 'string'
       ? JSON.parse(twibbon.config as string)
       : twibbon.config,

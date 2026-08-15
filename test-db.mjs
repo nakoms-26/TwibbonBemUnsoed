@@ -7,7 +7,7 @@ const prisma = new PrismaClient({
   log: ['error'],
 });
 
-console.log('Mencoba koneksi ke Supabase...');
+console.log('Mencoba koneksi ke MySQL Hostinger...');
 
 try {
   await prisma.$connect();
