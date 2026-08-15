@@ -49,9 +49,8 @@ export default function TwibbonCard({ twibbon, compactOnMobile = false }: Twibbo
             src={`${twibbon.thumbnail}${timestamp}`}
             alt={twibbon.title}
             fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1200px) 33vw, 25vw"
             className="object-cover"
-            unoptimized
           />
         ) : (
           <div className="flex items-center justify-center h-full w-full text-5xl font-black text-gray-300">

@@ -4,7 +4,14 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { renderChromaKey } from "@/lib/webglChroma";
-import { Upload, RefreshCw, Copy, Download, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Upload,
+  RefreshCw,
+  Copy,
+  Download,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 import LiveCounter from "@/components/LiveCounter";
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -13,37 +20,56 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     image.addEventListener("load", () => resolve(image));
     image.addEventListener("error", (error) => {
       console.error("Image load error event:", error);
-      reject(new Error(`Gagal memuat gambar. Pastikan server gambar mengizinkan CORS. URL: ${url}`));
+      reject(
+        new Error(
+          `Gagal memuat gambar. Pastikan server gambar mengizinkan CORS. URL: ${url}`,
+        ),
+      );
     });
-    
+
     if (url.startsWith("data:") || url.startsWith("blob:")) {
       image.src = url;
     } else {
       image.setAttribute("crossOrigin", "anonymous");
-      const cacheBuster = url.includes("?") ? `&_cb=${Date.now()}` : `?_cb=${Date.now()}`;
+      const cacheBuster = url.includes("?")
+        ? `&_cb=${Date.now()}`
+        : `?_cb=${Date.now()}`;
       image.src = url + cacheBuster;
     }
   });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<string, any> }) {
+export default function TwibbonClientEditor({
+  twibbon,
+}: {
+  twibbon: Record<string, any>;
+}) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Record<string, number> | null>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Record<
+    string,
+    number
+  > | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const isProcessingRef = useRef(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStage, setRenderStage] = useState("");
   // Mime type yang dipakai saat recording — menentukan ekstensi file download
-  const [videoMimeType, setVideoMimeType] = useState<string>('video/mp4');
+  const [videoMimeType, setVideoMimeType] = useState<string>("video/mp4");
   const isVideo = twibbon.type === "VIDEO";
-  const isAlphaVideo = isVideo && typeof twibbon.overlayFile === 'string' && twibbon.overlayFile.toLowerCase().endsWith('.webm');
+  const isAlphaVideo =
+    isVideo &&
+    typeof twibbon.overlayFile === "string" &&
+    twibbon.overlayFile.toLowerCase().endsWith(".webm");
   // State untuk loading progress video overlay
-  const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
+  const [videoLoadProgress, setVideoLoadProgress] = useState<number>(
+    isVideo ? 0 : 100,
+  );
   const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
   const [showSafariWarning, setShowSafariWarning] = useState(false);
+  const [showFullCaption, setShowFullCaption] = useState(false);
 
   // Live count — di-update dari response POST /api/downloads
   const [liveCount, setLiveCount] = useState<number | null>(null);
@@ -87,7 +113,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   useEffect(() => {
     if (isAlphaVideo) {
       // Deteksi Safari (termasuk iOS Safari) tapi bukan Chrome/Edge yang pakai WebKit
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(
+        navigator.userAgent,
+      );
       if (isSafari) {
         setShowSafariWarning(true);
       }
@@ -195,17 +223,31 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         }
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
-            const raw = twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
+            const raw =
+              twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
             let chromaColor = "#00FF00";
             if (Array.isArray(raw)) {
-              const r = Math.round(raw[0] * 255).toString(16).padStart(2, '0');
-              const g = Math.round(raw[1] * 255).toString(16).padStart(2, '0');
-              const b = Math.round(raw[2] * 255).toString(16).padStart(2, '0');
+              const r = Math.round(raw[0] * 255)
+                .toString(16)
+                .padStart(2, "0");
+              const g = Math.round(raw[1] * 255)
+                .toString(16)
+                .padStart(2, "0");
+              const b = Math.round(raw[2] * 255)
+                .toString(16)
+                .padStart(2, "0");
               chromaColor = `#${r}${g}${b}`;
-            } else if (typeof raw === 'string' && raw.startsWith('#')) {
+            } else if (typeof raw === "string" && raw.startsWith("#")) {
               chromaColor = raw;
             }
-            renderChromaKey(video, canvas, undefined, undefined, chromaColor, isAlphaVideo);
+            renderChromaKey(
+              video,
+              canvas,
+              undefined,
+              undefined,
+              chromaColor,
+              isAlphaVideo,
+            );
           } catch (e) {
             console.error("Chroma key render error:", e);
           }
@@ -250,19 +292,23 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     if (!imageSrc || !croppedAreaPixels || !overlayDims) return;
 
     // === FIX IOS AUDIO SILENCE: Initialize AudioContext synchronously ===
-    if (isVideo && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (isVideo && typeof window !== "undefined") {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
       if (AudioCtx && !audioCtxRef.current) {
         audioCtxRef.current = new AudioCtx({ sampleRate: 44100 });
       }
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
         audioCtxRef.current.resume();
       }
       if (videoRef.current) {
         videoRef.current.muted = false; // Unmute synchronously
         if (!audioSourceRef.current && audioCtxRef.current) {
           try {
-            audioSourceRef.current = audioCtxRef.current.createMediaElementSource(videoRef.current);
+            audioSourceRef.current =
+              audioCtxRef.current.createMediaElementSource(videoRef.current);
           } catch (e) {
             console.warn("Failed to create media element source:", e);
           }
@@ -306,35 +352,53 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
         // === CSR: Canvas Stream + MediaRecorder ===
         // Real-time recording, tanpa dependency eksternal
         const videoElement = videoRef.current;
-        if (!videoElement) throw new Error('Video element tidak ditemukan');
+        if (!videoElement) throw new Error("Video element tidak ditemukan");
 
         // Selalu Full HD — dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
-        const encodeWidth  = Math.ceil(overlayDims.width  / 2) * 2;
+        const encodeWidth = Math.ceil(overlayDims.width / 2) * 2;
         const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
 
         // Canvas WebGL untuk chroma key & compositing (GPU)
-        const chromaCanvas = document.createElement('canvas');
-        chromaCanvas.width = encodeWidth; chromaCanvas.height = encodeHeight;
+        const chromaCanvas = document.createElement("canvas");
+        chromaCanvas.width = encodeWidth;
+        chromaCanvas.height = encodeHeight;
         // Init WebGL chroma key context untuk recording
-        const { initWebGL: initGL, renderChromaKey: renderGL, destroyWebGL } = await import('@/lib/webglChroma');
-        
+        const {
+          initWebGL: initGL,
+          renderChromaKey: renderGL,
+          destroyWebGL,
+        } = await import("@/lib/webglChroma");
+
         initGL(chromaCanvas);
 
         // Cek apakah browser mendukung WebCodecs API (VideoEncoder)
-        const supportsWebCodecs = typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined';
+        const supportsWebCodecs =
+          typeof VideoEncoder !== "undefined" &&
+          typeof AudioEncoder !== "undefined";
 
-        const duration = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.duration : 0;
-        setRenderStage('Mempersiapkan rekaman...'); setRenderProgress(2);
+        const duration =
+          isFinite(videoElement.duration) && videoElement.duration > 0
+            ? videoElement.duration
+            : 0;
+        setRenderStage("Mempersiapkan rekaman...");
+        setRenderProgress(2);
 
         // Resolve chroma color sekali saja di luar loop frame
-        const rawColor = twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
-        let chromaColor = '#00FF00';
+        const rawColor =
+          twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
+        let chromaColor = "#00FF00";
         if (Array.isArray(rawColor)) {
-          const r = Math.round(rawColor[0] * 255).toString(16).padStart(2, '0');
-          const g = Math.round(rawColor[1] * 255).toString(16).padStart(2, '0');
-          const b = Math.round(rawColor[2] * 255).toString(16).padStart(2, '0');
+          const r = Math.round(rawColor[0] * 255)
+            .toString(16)
+            .padStart(2, "0");
+          const g = Math.round(rawColor[1] * 255)
+            .toString(16)
+            .padStart(2, "0");
+          const b = Math.round(rawColor[2] * 255)
+            .toString(16)
+            .padStart(2, "0");
           chromaColor = `#${r}${g}${b}`;
-        } else if (typeof rawColor === 'string' && rawColor.startsWith('#')) {
+        } else if (typeof rawColor === "string" && rawColor.startsWith("#")) {
           chromaColor = rawColor;
         }
 
@@ -342,33 +406,36 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           // ══════════════════════════════════════════════════════════
           // PATH A: VideoEncoder + mp4-muxer → output .mp4 asli
           // ══════════════════════════════════════════════════════════
-          const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
+          const { Muxer, ArrayBufferTarget } = await import("mp4-muxer");
 
           const target = new ArrayBufferTarget();
           const muxer = new Muxer({
             target,
-            video: { codec: 'avc', width: encodeWidth, height: encodeHeight },
-            audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
-            fastStart: 'in-memory',
+            video: { codec: "avc", width: encodeWidth, height: encodeHeight },
+            audio: { codec: "aac", sampleRate: 44100, numberOfChannels: 2 },
+            fastStart: "in-memory",
           });
 
           // Video Encoder (H.264)
 
           const videoEncoder = new VideoEncoder({
             output: (chunk, meta) => {
-              if (videoEncoder.state === 'configured') muxer.addVideoChunk(chunk, meta);
+              if (videoEncoder.state === "configured")
+                muxer.addVideoChunk(chunk, meta);
             },
-            error: (e) => { console.error("VideoEncoder Error:", e); },
+            error: (e) => {
+              console.error("VideoEncoder Error:", e);
+            },
           });
           videoEncoder.configure({
-            codec: 'avc1.42E028', // H.264 Constrained Baseline Profile, Level 4.0 (Wajib untuk 1080x1350)
+            codec: "avc1.42E028", // H.264 Constrained Baseline Profile, Level 4.0 (Wajib untuk 1080x1350)
             width: encodeWidth,
             height: encodeHeight,
             bitrate: 5_000_000, // 5 Mbps (Kualitas tinggi, anti pecah)
             framerate: 30,
-            hardwareAcceleration: 'prefer-hardware', // Paksa pakai GPU bawaan hp
-            latencyMode: 'quality', // Utamakan kualitas gambar daripada kecepatan render
-            avc: { format: 'avc' }
+            hardwareAcceleration: "prefer-hardware", // Paksa pakai GPU bawaan hp
+            latencyMode: "quality", // Utamakan kualitas gambar daripada kecepatan render
+            avc: { format: "avc" },
           });
 
           // Audio Encoder (AAC) — hanya jika video punya audio
@@ -392,7 +459,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 error: () => {}, // audio error tidak fatal
               });
               audioEncoder.configure({
-                codec: 'mp4a.40.2', // AAC-LC
+                codec: "mp4a.40.2", // AAC-LC
                 sampleRate: 44100,
                 numberOfChannels: 2,
                 bitrate: 128_000,
@@ -400,26 +467,33 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
               // Muat AudioWorklet processor dari /public — berjalan di audio thread
               try {
-                await audioContext.audioWorklet.addModule('/audio-capture-processor.js');
+                await audioContext.audioWorklet.addModule(
+                  "/audio-capture-processor.js",
+                );
               } catch (err) {
                 // Abaikan error jika module sudah pernah di-load di konteks ini
                 console.log("AudioWorklet module mungkin sudah ada:", err);
               }
-              audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
+              audioWorkletNode = new AudioWorkletNode(
+                audioContext,
+                "audio-capture-processor",
+              );
 
               // Terima data PCM dari audio thread (zero-copy via Transferable),
               // lalu encode ke AAC di main thread menggunakan WebCodecs AudioEncoder
-              audioWorkletNode.port.onmessage = ({ data }: MessageEvent<{ left: Float32Array; right: Float32Array }>) => {
+              audioWorkletNode.port.onmessage = ({
+                data,
+              }: MessageEvent<{ left: Float32Array; right: Float32Array }>) => {
                 if (!isRecordingStarted) return;
-                if (audioEncoder && audioEncoder.state === 'configured') {
+                if (audioEncoder && audioEncoder.state === "configured") {
                   const { left, right } = data;
                   const merged = new Float32Array(left.length * 2);
                   for (let i = 0; i < left.length; i++) {
-                    merged[i * 2]     = left[i];
+                    merged[i * 2] = left[i];
                     merged[i * 2 + 1] = right[i];
                   }
                   const audioData = new AudioData({
-                    format: 'f32',
+                    format: "f32",
                     sampleRate: 44100,
                     numberOfFrames: left.length,
                     numberOfChannels: 2,
@@ -436,7 +510,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               audioWorkletNode.connect(audioContext.destination);
             }
           } catch (e) {
-            console.warn('AudioWorklet tidak tersedia, lanjut tanpa audio:', e);
+            console.warn("AudioWorklet tidak tersedia, lanjut tanpa audio:", e);
           }
 
           // Frame counter untuk keyframe
@@ -449,24 +523,33 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             if (firstMediaTime === -1) firstMediaTime = mediaTime;
 
             // Render WebGL chroma key ke canvas
-            renderGL(videoElement, chromaCanvas, userImg, {
-              x: croppedAreaPixels.x,
-              y: croppedAreaPixels.y,
-              w: croppedAreaPixels.width,
-              h: croppedAreaPixels.height,
-            }, chromaColor, isAlphaVideo);
+            renderGL(
+              videoElement,
+              chromaCanvas,
+              userImg,
+              {
+                x: croppedAreaPixels.x,
+                y: croppedAreaPixels.y,
+                w: croppedAreaPixels.width,
+                h: croppedAreaPixels.height,
+              },
+              chromaColor,
+              isAlphaVideo,
+            );
 
             // Ambil frame dari canvas dan encode ke H.264
             // Gunakan selisih mediaTime asli agar durasi video cocok dengan audio meskipun ada frame drop
-            const timestampUs = Math.round((mediaTime - firstMediaTime) * 1_000_000);
+            const timestampUs = Math.round(
+              (mediaTime - firstMediaTime) * 1_000_000,
+            );
             // Bypass bug "reading 'colorSpace'" di Chrome Android
             const videoFrame = new VideoFrame(chromaCanvas, {
               timestamp: timestampUs,
               duration: FRAME_DURATION_US,
-              alpha: 'discard'
+              alpha: "discard",
             });
             const isKeyFrame = frameCount % 30 === 0; // keyframe tiap 1 detik
-            if (videoEncoder.state === 'configured') {
+            if (videoEncoder.state === "configured") {
               videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
             }
             videoFrame.close();
@@ -474,15 +557,20 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
             if (duration > 0) {
               const mediaTime = videoElement.currentTime;
-              setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
-              setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+              setRenderProgress(
+                Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)),
+              );
+              setRenderStage(
+                `Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`,
+              );
             }
           };
 
           videoElement.pause();
           videoElement.currentTime = 0;
           videoElement.loop = false;
-          const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+          const hasRVFC =
+            "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
           await new Promise<void>((resolve, reject) => {
             const finish = async () => {
@@ -491,13 +579,13 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 isRecordingStarted = false;
 
                 // Flush semua encoder (tunggu sisa antrean diproses)
-                if (videoEncoder.state === 'configured') {
+                if (videoEncoder.state === "configured") {
                   await videoEncoder.flush();
                 }
-                if (audioEncoder && audioEncoder.state === 'configured') {
+                if (audioEncoder && audioEncoder.state === "configured") {
                   await audioEncoder.flush();
                 }
-                
+
                 // Baru aman untuk finalize
                 muxer.finalize();
 
@@ -509,13 +597,15 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 // Do NOT close audioCtxRef or disconnect audioSourceRef, as they can be reused!
 
                 const { buffer } = target;
-                const blob = new Blob([buffer], { type: 'video/mp4' });
+                const blob = new Blob([buffer], { type: "video/mp4" });
                 setResultUrl(URL.createObjectURL(blob));
-                setVideoMimeType('video/mp4');
+                setVideoMimeType("video/mp4");
                 setRenderProgress(100);
-                setRenderStage('Selesai!');
+                setRenderStage("Selesai!");
                 resolve();
-              } catch (e) { reject(e); }
+              } catch (e) {
+                reject(e);
+              }
             };
 
             const startRecording = () => {
@@ -523,7 +613,7 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               let hasStarted = false;
 
               if (hasRVFC) {
-                let lastProcessed = -1; 
+                let lastProcessed = -1;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const captureFrame = (_: number, meta: any) => {
                   if (!hasStarted) {
@@ -531,7 +621,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     if (meta.mediaTime > 0.1) {
                       if (!videoElement.ended) {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        (videoElement as any).requestVideoFrameCallback(captureFrame);
+                        (videoElement as any).requestVideoFrameCallback(
+                          captureFrame,
+                        );
                       }
                       return;
                     }
@@ -543,15 +635,23 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   if (meta.mediaTime - lastProcessed < 1 / FPS) {
                     if (!videoElement.ended) {
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      (videoElement as any).requestVideoFrameCallback(captureFrame);
+                      (videoElement as any).requestVideoFrameCallback(
+                        captureFrame,
+                      );
                     }
                     return;
                   }
                   lastProcessed = meta.mediaTime;
-                  try { processFrame(meta.mediaTime); } catch (e) { return reject(e); }
+                  try {
+                    processFrame(meta.mediaTime);
+                  } catch (e) {
+                    return reject(e);
+                  }
                   if (!videoElement.ended) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (videoElement as any).requestVideoFrameCallback(captureFrame);
+                    (videoElement as any).requestVideoFrameCallback(
+                      captureFrame,
+                    );
                   }
                 };
                 videoElement.onended = () => finish();
@@ -562,9 +662,13 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 let rafId: number;
                 let lastProcessed = -1;
                 const rafLoop = () => {
-                  if (videoElement.ended) { cancelAnimationFrame(rafId); finish(); return; }
+                  if (videoElement.ended) {
+                    cancelAnimationFrame(rafId);
+                    finish();
+                    return;
+                  }
                   const t = videoElement.currentTime;
-                  
+
                   if (!hasStarted) {
                     if (t > 0.1) {
                       rafId = requestAnimationFrame(rafLoop);
@@ -577,7 +681,13 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
                   if (t - lastProcessed >= 1 / FPS) {
                     lastProcessed = t;
-                    try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); reject(e); return; }
+                    try {
+                      processFrame(t);
+                    } catch (e) {
+                      cancelAnimationFrame(rafId);
+                      reject(e);
+                      return;
+                    }
                   }
                   rafId = requestAnimationFrame(rafLoop);
                 };
@@ -587,46 +697,81 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
             startRecording();
           });
-
         } else {
           // ══════════════════════════════════════════════════════════
           // PATH B: Fallback MediaRecorder → output .webm (Firefox)
           // ══════════════════════════════════════════════════════════
-          const mimePreference = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
-          const selectedMime = mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
-          if (!selectedMime) throw new Error('Browser tidak mendukung perekaman video.');
+          const mimePreference = [
+            "video/webm;codecs=vp9,opus",
+            "video/webm;codecs=vp8,opus",
+            "video/webm",
+          ];
+          const selectedMime =
+            mimePreference.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+          if (!selectedMime)
+            throw new Error("Browser tidak mendukung perekaman video.");
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const supportsManualCapture = typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)?.requestFrame === 'function';
-          const canvasStream = supportsManualCapture ? chromaCanvas.captureStream(0) : chromaCanvas.captureStream(30);
+          const supportsManualCapture =
+            typeof (chromaCanvas.captureStream(0).getVideoTracks()[0] as any)
+              ?.requestFrame === "function";
+          const canvasStream = supportsManualCapture
+            ? chromaCanvas.captureStream(0)
+            : chromaCanvas.captureStream(30);
           const [videoTrack] = canvasStream.getVideoTracks();
           const combinedStream = new MediaStream([videoTrack]);
 
           try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const audioStream = (videoElement as any).captureStream?.();
-            if (audioStream) audioStream.getAudioTracks().forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
-          } catch (e) { console.warn('Audio tidak tersedia:', e); }
+            if (audioStream)
+              audioStream
+                .getAudioTracks()
+                .forEach((t: MediaStreamTrack) => combinedStream.addTrack(t));
+          } catch (e) {
+            console.warn("Audio tidak tersedia:", e);
+          }
 
-          const recorder = new MediaRecorder(combinedStream, { mimeType: selectedMime, videoBitsPerSecond: 2_000_000 });
+          const recorder = new MediaRecorder(combinedStream, {
+            mimeType: selectedMime,
+            videoBitsPerSecond: 2_000_000,
+          });
           const chunks: Blob[] = [];
-          recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+          recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunks.push(e.data);
+          };
 
           const processFrame = (mediaTime: number) => {
-            renderGL(videoElement, chromaCanvas, userImg, {
-              x: croppedAreaPixels.x, y: croppedAreaPixels.y,
-              w: croppedAreaPixels.width, h: croppedAreaPixels.height,
-            }, chromaColor, isAlphaVideo);
+            renderGL(
+              videoElement,
+              chromaCanvas,
+              userImg,
+              {
+                x: croppedAreaPixels.x,
+                y: croppedAreaPixels.y,
+                w: croppedAreaPixels.width,
+                h: croppedAreaPixels.height,
+              },
+              chromaColor,
+              isAlphaVideo,
+            );
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (supportsManualCapture) (videoTrack as any).requestFrame();
             if (duration > 0) {
-              setRenderProgress(Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)));
-              setRenderStage(`Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`);
+              setRenderProgress(
+                Math.min(97, 2 + Math.floor((mediaTime / duration) * 95)),
+              );
+              setRenderStage(
+                `Merekam... ${Math.round(mediaTime)}s / ${Math.round(duration)}s`,
+              );
             }
           };
 
-          videoElement.currentTime = 0; videoElement.loop = false; videoElement.muted = false;
-          const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+          videoElement.currentTime = 0;
+          videoElement.loop = false;
+          videoElement.muted = false;
+          const hasRVFC =
+            "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
           await new Promise<void>((resolve, reject) => {
             recorder.onstop = () => {
@@ -634,9 +779,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 const blob = new Blob(chunks, { type: selectedMime });
                 setResultUrl(URL.createObjectURL(blob));
                 setVideoMimeType(selectedMime);
-                setRenderProgress(100); setRenderStage('Selesai!');
+                setRenderProgress(100);
+                setRenderStage("Selesai!");
                 resolve();
-              } catch (e) { reject(e); }
+              } catch (e) {
+                reject(e);
+              }
             };
 
             if (hasRVFC) {
@@ -645,13 +793,22 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               const captureFrame = (_: number, meta: any) => {
                 if (meta.mediaTime - lastProcessed < 1 / 30) {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  if (!videoElement.ended) (videoElement as any).requestVideoFrameCallback(captureFrame);
+                  if (!videoElement.ended)
+                    (videoElement as any).requestVideoFrameCallback(
+                      captureFrame,
+                    );
                   return;
                 }
                 lastProcessed = meta.mediaTime;
-                try { processFrame(meta.mediaTime); } catch (e) { recorder.stop(); return reject(e); }
+                try {
+                  processFrame(meta.mediaTime);
+                } catch (e) {
+                  recorder.stop();
+                  return reject(e);
+                }
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if (!videoElement.ended) (videoElement as any).requestVideoFrameCallback(captureFrame);
+                if (!videoElement.ended)
+                  (videoElement as any).requestVideoFrameCallback(captureFrame);
               };
               videoElement.onended = () => recorder.stop();
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -660,27 +817,45 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
               let rafId: number;
               let lastProcessed = 0;
               const rafLoop = () => {
-                if (videoElement.ended) { cancelAnimationFrame(rafId); recorder.stop(); return; }
+                if (videoElement.ended) {
+                  cancelAnimationFrame(rafId);
+                  recorder.stop();
+                  return;
+                }
                 const t = videoElement.currentTime;
-                if (t - lastProcessed >= 1 / 30) { lastProcessed = t; try { processFrame(t); } catch (e) { cancelAnimationFrame(rafId); recorder.stop(); reject(e); return; } }
+                if (t - lastProcessed >= 1 / 30) {
+                  lastProcessed = t;
+                  try {
+                    processFrame(t);
+                  } catch (e) {
+                    cancelAnimationFrame(rafId);
+                    recorder.stop();
+                    reject(e);
+                    return;
+                  }
+                }
                 rafId = requestAnimationFrame(rafLoop);
               };
               rafId = requestAnimationFrame(rafLoop);
             }
 
             recorder.start(200);
-            videoElement.play().catch((e) => { recorder.stop(); reject(e); });
+            videoElement.play().catch((e) => {
+              recorder.stop();
+              reject(e);
+            });
           });
         }
 
-        videoElement.loop = true; videoElement.onended = null;
+        videoElement.loop = true;
+        videoElement.onended = null;
         chromaCanvas.width = 1;
         destroyWebGL();
-
       }
     } catch (e: unknown) {
       console.error(e);
-      const message = e instanceof Error ? e.message : "Kesalahan tidak diketahui";
+      const message =
+        e instanceof Error ? e.message : "Kesalahan tidak diketahui";
       alert("Terjadi kesalahan saat memproses twibbon: " + message);
     } finally {
       setIsProcessing(false);
@@ -699,7 +874,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
       {/* Kiri: Canvas / Preview Stage */}
       <div className="w-full flex-1 flex flex-col items-center justify-center">
         {/* Live counter badge */}
-        <p className="text-sm font-semibold mt-1 mb-2" style={{ color: "rgba(237,233,254,0.7)" }}>
+        <p
+          className="text-sm font-semibold mt-1 mb-2"
+          style={{ color: "rgba(237,233,254,0.7)" }}
+        >
           🎯{" "}
           <LiveCounter
             initialCount={twibbon.downloadsCount ?? 0}
@@ -713,9 +891,12 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           <div className="w-full max-w-2xl mb-4 bg-red-100/10 border border-red-500/30 rounded-2xl p-4 flex gap-4 items-start backdrop-blur-sm">
             <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={24} />
             <div>
-              <h4 className="font-bold text-red-400 text-sm mb-1">Perhatian untuk Pengguna Safari/iPhone</h4>
+              <h4 className="font-bold text-red-400 text-sm mb-1">
+                Perhatian untuk Pengguna Safari/iPhone
+              </h4>
               <p className="text-red-300/80 text-xs leading-relaxed">
-                Browser Anda (Safari) tidak mendukung format video transparan ini, sehingga layar akan terlihat hitam.
+                Browser Anda (Safari) tidak mendukung format video transparan
+                ini, sehingga layar akan terlihat hitam.
               </p>
             </div>
           </div>
@@ -782,7 +963,9 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             )}
 
             {/* === LAYER 1: Overlay (video/gambar) — SELALU ada di DOM, visibilitas diatur CSS === */}
-            <div className={`absolute inset-0 pointer-events-none ${imageSrc ? "z-10" : "z-10"}`}>
+            <div
+              className={`absolute inset-0 pointer-events-none ${imageSrc ? "z-10" : "z-10"}`}
+            >
               {isVideo ? (
                 <>
                   {/* Satu video element tunggal — tidak pernah di-unmount agar tidak reload */}
@@ -797,9 +980,20 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     preload="auto"
                     // Saat imageSrc ada: sembunyikan (dipakai WebGL via ref), tampilkan canvas
                     // Saat belum ada foto: tampilkan sebagai preview full
-                    style={imageSrc
-                      ? { position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }
-                      : { width: "100%", height: "100%", objectFit: "contain" }
+                    style={
+                      imageSrc
+                        ? {
+                            position: "absolute",
+                            width: 1,
+                            height: 1,
+                            opacity: 0,
+                            pointerEvents: "none",
+                          }
+                        : {
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "contain",
+                          }
                     }
                     onLoadedMetadata={(e) => {
                       e.currentTarget.play().catch(() => {});
@@ -811,7 +1005,11 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                     onProgress={(e) => {
                       const vid = e.currentTarget;
                       if (vid.buffered.length > 0 && vid.duration > 0) {
-                        const pct = Math.round((vid.buffered.end(vid.buffered.length - 1) / vid.duration) * 100);
+                        const pct = Math.round(
+                          (vid.buffered.end(vid.buffered.length - 1) /
+                            vid.duration) *
+                            100,
+                        );
                         setVideoLoadProgress(Math.min(pct, 99));
                       }
                     }}
@@ -858,9 +1056,20 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                   >
                     <div className="relative w-20 h-20 mx-auto mb-4">
                       <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                        <circle cx="40" cy="40" r="32" fill="none" strokeWidth="6" stroke="rgba(79,77,154,0.12)" />
                         <circle
-                          cx="40" cy="40" r="32" fill="none" strokeWidth="6"
+                          cx="40"
+                          cy="40"
+                          r="32"
+                          fill="none"
+                          strokeWidth="6"
+                          stroke="rgba(79,77,154,0.12)"
+                        />
+                        <circle
+                          cx="40"
+                          cy="40"
+                          r="32"
+                          fill="none"
+                          strokeWidth="6"
                           stroke="#4f4d9a"
                           strokeLinecap="round"
                           strokeDasharray={`${2 * Math.PI * 32}`}
@@ -868,12 +1077,25 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                           style={{ transition: "stroke-dashoffset 0.4s ease" }}
                         />
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-sm font-black tabular-nums" style={{ color: "#4f4d9a" }}>
+                      <span
+                        className="absolute inset-0 flex items-center justify-center text-sm font-black tabular-nums"
+                        style={{ color: "#4f4d9a" }}
+                      >
                         {videoLoadProgress}%
                       </span>
                     </div>
-                    <p className="font-extrabold text-sm uppercase tracking-wider" style={{ color: "#2f2f67" }}>Memuat Video...</p>
-                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.7 }}>Harap tunggu, video sedang dimuat</p>
+                    <p
+                      className="font-extrabold text-sm uppercase tracking-wider"
+                      style={{ color: "#2f2f67" }}
+                    >
+                      Memuat Video...
+                    </p>
+                    <p
+                      className="text-xs font-semibold mt-1"
+                      style={{ color: "#4f4d9a", opacity: 0.7 }}
+                    >
+                      Harap tunggu, video sedang dimuat
+                    </p>
                   </div>
                 ) : (
                   /* Upload prompt */
@@ -886,11 +1108,24 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       borderColor: "rgba(79, 77, 154, 0.2)",
                     }}
                   >
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12" style={{ background: "#2d1b69" }}>
+                    <div
+                      className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-md transition-transform group-hover:-rotate-12"
+                      style={{ background: "#2d1b69" }}
+                    >
                       <Upload size={24} />
                     </div>
-                    <p className="font-extrabold text-base uppercase tracking-wider transition-colors" style={{ color: "#2f2f67" }}>Pilih Foto</p>
-                    <p className="text-xs font-semibold mt-1" style={{ color: "#4f4d9a", opacity: 0.8 }}>Klik area ini untuk mengunggah</p>
+                    <p
+                      className="font-extrabold text-base uppercase tracking-wider transition-colors"
+                      style={{ color: "#2f2f67" }}
+                    >
+                      Pilih Foto
+                    </p>
+                    <p
+                      className="text-xs font-semibold mt-1"
+                      style={{ color: "#4f4d9a", opacity: 0.8 }}
+                    >
+                      Klik area ini untuk mengunggah
+                    </p>
                   </div>
                 )}
               </div>
@@ -898,7 +1133,6 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           </div>
         )}
       </div>
-
 
       {/* Kanan: Controls */}
       <div
@@ -918,7 +1152,10 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             }}
           >
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#4f4d9a" }}>
+              <h3
+                className="text-xs font-extrabold uppercase tracking-widest"
+                style={{ color: "#4f4d9a" }}
+              >
                 Caption
               </h3>
               <button
@@ -933,17 +1170,41 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                 <span>Salin</span>
               </button>
             </div>
-            <p className="text-xs font-semibold line-clamp-4 leading-relaxed" style={{ color: "#2f2f67", opacity: 0.9 }}>
+            <p
+              className="text-xs font-semibold leading-relaxed whitespace-pre-line"
+              style={{
+                color: "#2f2f67",
+                opacity: 0.9,
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: showFullCaption ? "unset" : 4,
+                overflow: showFullCaption ? "visible" : "hidden",
+                transition: "all 0.3s ease",
+              }}
+            >
               {twibbon.description}
             </p>
+            <button
+              onClick={() => setShowFullCaption(!showFullCaption)}
+              className="mt-2 text-[10px] font-semibold uppercase tracking-wider transition-all hover:opacity-70"
+              style={{ color: "#4f4d9a" }}
+            >
+              {showFullCaption ? "Sembunyikan" : "Lihat Selengkapnya"}
+            </button>
           </div>
         )}
 
         <div>
-          <h3 className="text-base font-extrabold uppercase tracking-tight mb-1" style={{ color: "#2f2f67" }}>
+          <h3
+            className="text-base font-extrabold uppercase tracking-tight mb-1"
+            style={{ color: "#2f2f67" }}
+          >
             1. Pilih Foto
           </h3>
-          <p className="text-xs font-semibold mb-4" style={{ color: "#4f4d9a", opacity: 0.8 }}>
+          <p
+            className="text-xs font-semibold mb-4"
+            style={{ color: "#4f4d9a", opacity: 0.8 }}
+          >
             Pilih foto terbaik Anda untuk digabungkan dengan bingkai ini.
           </p>
           <input
@@ -969,10 +1230,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
 
         {imageSrc && !resultUrl && (
           <div>
-            <h3 className="text-base font-extrabold uppercase tracking-tight mb-1" style={{ color: "#2f2f67" }}>
+            <h3
+              className="text-base font-extrabold uppercase tracking-tight mb-1"
+              style={{ color: "#2f2f67" }}
+            >
               2. Sesuaikan Posisi
             </h3>
-            <p className="text-xs font-semibold mb-4" style={{ color: "#4f4d9a", opacity: 0.8 }}>
+            <p
+              className="text-xs font-semibold mb-4"
+              style={{ color: "#4f4d9a", opacity: 0.8 }}
+            >
               Geser foto atau perbesar dengan slider.
             </p>
             <input
@@ -988,10 +1255,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
           </div>
         )}
 
-        <div className="pt-6 border-t" style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}>
+        <div
+          className="pt-6 border-t"
+          style={{ borderColor: "rgba(79, 77, 154, 0.1)" }}
+        >
           {!resultUrl ? (
             <div>
-              <h3 className="text-base font-extrabold uppercase tracking-tight mb-4" style={{ color: "#2f2f67" }}>
+              <h3
+                className="text-base font-extrabold uppercase tracking-tight mb-4"
+                style={{ color: "#2f2f67" }}
+              >
                 3. Ekspor
               </h3>
 
@@ -1023,7 +1296,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       className="h-full rounded-full"
                       style={{
                         width: `${renderProgress}%`,
-                        background: "linear-gradient(90deg, #4f4d9a 0%, #7c78c9 100%)",
+                        background:
+                          "linear-gradient(90deg, #4f4d9a 0%, #7c78c9 100%)",
                         transition: "width 0.3s ease",
                       }}
                     />
@@ -1043,7 +1317,8 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
                       className="text-xs font-semibold text-center mt-2 leading-relaxed"
                       style={{ color: "#b45309", opacity: 0.9 }}
                     >
-                      ⏳ Jangan menutup atau berpindah tab selama proses berlangsung.
+                      ⏳ Jangan menutup atau berpindah tab selama proses
+                      berlangsung.
                     </p>
                   )}
                 </div>
@@ -1091,13 +1366,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
             <div className="space-y-4">
               <div className="flex items-center space-x-2 mb-2">
                 <CheckCircle className="text-green-600" size={20} />
-                <h3 className="text-base font-extrabold uppercase tracking-tight" style={{ color: "#2f2f67" }}>
+                <h3
+                  className="text-base font-extrabold uppercase tracking-tight"
+                  style={{ color: "#2f2f67" }}
+                >
                   Selesai!
                 </h3>
               </div>
               <a
                 href={resultUrl}
-                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? (videoMimeType.startsWith('video/mp4') ? 'mp4' : 'webm') : "png"}`}
+                download={`twibbon-${twibbon.slug || "hasil"}.${isVideo ? (videoMimeType.startsWith("video/mp4") ? "mp4" : "webm") : "png"}`}
                 className="w-full py-4 px-6 text-xs font-extrabold uppercase tracking-wider text-black rounded-full transition-all shadow-md hover:scale-[1.02] active:scale-95 flex justify-center items-center space-x-2"
                 style={{
                   background: "#FDB927",

@@ -14,10 +14,10 @@ model Twibbon {
   id          Int         @id @default(autoincrement())
   title       String
   slug        String      @unique
-  description String?
+  description String?     @db.Text
   type        OverlayType
-  overlayFile String
-  thumbnail   String
+  overlayFile String      @db.Text
+  thumbnail   String      @db.Text
   config      Json
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
