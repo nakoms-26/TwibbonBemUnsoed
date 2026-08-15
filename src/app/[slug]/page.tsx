@@ -18,12 +18,23 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
+/** Ambil twibbon dari DB (pakai findFirst agar bisa filter isActive),
+ *  fallback ke mockData jika DB tidak tersedia. */
+async function getTwibbon(slug: string) {
+  try {
+    const dbRow = await prisma.twibbon.findFirst({
+      where: { slug, isActive: true },
+    });
+    if (dbRow) return dbRow;
+  } catch {
+    // DB tidak tersedia — gunakan mock
+  }
+  return mockTwibbons.find((t) => t.slug === slug && t.isActive) ?? null;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-
-  const twibbon = await prisma.twibbon.findUnique({
-    where: { slug, isActive: true },
-  }).catch(() => null);
+  const twibbon = await getTwibbon(slug);
 
   if (!twibbon) {
     return {
@@ -34,11 +45,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const baseUrl = "https://www.twibbon.bem-unsoed.com";
   const timestamp = twibbon.updatedAt ? `?t=${new Date(twibbon.updatedAt).getTime()}` : "";
   const imageUrl = twibbon.thumbnail
-    ? (twibbon.thumbnail.startsWith('http') ? `${twibbon.thumbnail}${timestamp}` : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
+    ? (twibbon.thumbnail.startsWith("http")
+        ? `${twibbon.thumbnail}${timestamp}`
+        : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
     : `${baseUrl}/logo.png`;
 
   const pageTitle = `${twibbon.title.toUpperCase()} - BEM Unsoed`;
-  const pageDesc = twibbon.description || `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk pasang foto kamu.`;
+  const pageDesc =
+    twibbon.description ||
+    `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk pasang foto kamu.`;
 
   return {
     title: pageTitle,
@@ -74,14 +89,13 @@ export default async function PublicTwibbonPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-
-  const twibbon = await prisma.twibbon.findUnique({
-    where: { slug, isActive: true },
-  }).catch(() => null);
+  const twibbon = await getTwibbon(slug);
 
   if (!twibbon) {
     notFound();
   }
+
+  const downloadsCount = twibbon.downloadsCount;
 
   // Serialize to pass to client component safely
   const serializedTwibbon = {
@@ -92,7 +106,7 @@ export default async function PublicTwibbonPage({
     type: twibbon.type,
     overlayFile: twibbon.overlayFile,
     thumbnail: twibbon.thumbnail,
-    downloadsCount: twibbon.downloadsCount,
+    downloadsCount,
     config: typeof twibbon.config === 'string'
       ? JSON.parse(twibbon.config as string)
       : twibbon.config,
@@ -127,9 +141,6 @@ export default async function PublicTwibbonPage({
             >
               {twibbon.title}
             </h1>
-            <p className="text-sm font-semibold mt-1" style={{ color: "rgba(237,233,254,0.7)" }}>
-              🎯 {twibbon.downloadsCount.toLocaleString("id-ID")} kali digunakan
-            </p>
           </div>
 
           <div className="w-full">

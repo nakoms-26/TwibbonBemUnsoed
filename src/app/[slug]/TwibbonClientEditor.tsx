@@ -5,6 +5,7 @@ import Image from "next/image";
 import Cropper from "react-easy-crop";
 import { renderChromaKey } from "@/lib/webglChroma";
 import { Upload, RefreshCw, Copy, Download, CheckCircle, AlertTriangle } from "lucide-react";
+import LiveCounter from "@/components/LiveCounter";
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -42,16 +43,46 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
   // State untuk loading progress video overlay
   const [videoLoadProgress, setVideoLoadProgress] = useState<number>(isVideo ? 0 : 100);
   const [videoReady, setVideoReady] = useState<boolean>(!isVideo);
-
-  // Catat kunjungan ke database saat komponen pertama kali dimuat
-  useEffect(() => {
-    fetch("/api/downloads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ twibbonId: twibbon.id }),
-    }).catch(console.error);
-  }, [twibbon.id]);
   const [showSafariWarning, setShowSafariWarning] = useState(false);
+
+  // Live count — di-update dari response POST /api/downloads
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+
+  // Catat kunjungan ke database saat komponen pertama kali dimuat.
+  // Ambil nilai downloadsCount terbaru dari response untuk animasi live counter.
+  // Jika POST di-rate-limit (429), fallback ke GET untuk tetap tampilkan angka terbaru.
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await fetch("/api/downloads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ twibbonId: twibbon.id }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.downloadsCount === "number") {
+            setLiveCount(data.downloadsCount);
+            return;
+          }
+        }
+
+        // POST gagal (rate-limited / error) — GET untuk baca count terkini tanpa increment
+        const getRes = await fetch(`/api/downloads?twibbonId=${twibbon.id}`);
+        if (getRes.ok) {
+          const data = await getRes.json();
+          if (typeof data.downloadsCount === "number") {
+            setLiveCount(data.downloadsCount);
+          }
+        }
+      } catch (err) {
+        console.error("LiveCounter fetch error:", err);
+      }
+    };
+
+    fetchCount();
+  }, [twibbon.id]);
 
   useEffect(() => {
     if (isAlphaVideo) {
@@ -667,7 +698,16 @@ export default function TwibbonClientEditor({ twibbon }: { twibbon: Record<strin
     <div className="flex flex-col md:flex-row items-center md:items-start justify-center gap-8 md:gap-12 max-w-6xl mx-auto">
       {/* Kiri: Canvas / Preview Stage */}
       <div className="w-full flex-1 flex flex-col items-center justify-center">
-        
+        {/* Live counter badge */}
+        <p className="text-sm font-semibold mt-1 mb-2" style={{ color: "rgba(237,233,254,0.7)" }}>
+          🎯{" "}
+          <LiveCounter
+            initialCount={twibbon.downloadsCount ?? 0}
+            liveCount={liveCount}
+          />{" "}
+          kali digunakan
+        </p>
+
         {/* Warning khusus Safari */}
         {showSafariWarning && (
           <div className="w-full max-w-2xl mb-4 bg-red-100/10 border border-red-500/30 rounded-2xl p-4 flex gap-4 items-start backdrop-blur-sm">
