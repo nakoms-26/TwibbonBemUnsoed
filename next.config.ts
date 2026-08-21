@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'asset.bem-unsoed.com',
+      },
+      {
+        protocol: 'https',
         hostname: '**',
       },
       {

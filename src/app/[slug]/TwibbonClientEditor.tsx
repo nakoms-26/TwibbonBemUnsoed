@@ -934,7 +934,7 @@ export default function TwibbonClientEditor({
                     image={imageSrc}
                     crop={crop}
                     zoom={zoom}
-                    cropSize={containerSize}
+                    aspect={currentAspectRatio}
                     onCropChange={setCrop}
                     onCropComplete={onCropComplete}
                     onZoomChange={setZoom}
