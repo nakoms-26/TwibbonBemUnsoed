@@ -83,7 +83,12 @@ const FRAGMENT_SHADER = `
         u_crop.x + v_texCoord.x * u_crop.z,
         u_crop.y + v_texCoord.y * u_crop.w
       );
-      vec4 imgColor = texture2D(u_image, imgUV);
+      vec4 imgColor;
+      if (imgUV.x < 0.0 || imgUV.x > 1.0 || imgUV.y < 0.0 || imgUV.y > 1.0) {
+        imgColor = vec4(0.0);
+      } else {
+        imgColor = texture2D(u_image, imgUV);
+      }
       vec3 finalColor = mix(imgColor.rgb, corrected, finalAlpha);
       gl_FragColor = vec4(finalColor, 1.0);
     } else {

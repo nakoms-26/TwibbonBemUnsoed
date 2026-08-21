@@ -27,14 +27,11 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
       );
     });
 
-    if (url.startsWith("data:") || url.startsWith("blob:")) {
+    if (url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("/")) {
       image.src = url;
     } else {
       image.setAttribute("crossOrigin", "anonymous");
-      const cacheBuster = url.includes("?")
-        ? `&_cb=${Date.now()}`
-        : `?_cb=${Date.now()}`;
-      image.src = url + cacheBuster;
+      image.src = `/api/proxy?url=${encodeURIComponent(url)}`;
     }
   });
 
@@ -334,17 +331,46 @@ export default function TwibbonClientEditor({
         const ctx = canvas.getContext("2d");
 
         if (ctx) {
-          ctx.drawImage(
-            userImg,
-            croppedAreaPixels.x,
-            croppedAreaPixels.y,
-            croppedAreaPixels.width,
-            croppedAreaPixels.height,
-            0,
-            0,
-            canvas.width,
-            canvas.height,
-          );
+          let sx = croppedAreaPixels.x;
+          let sy = croppedAreaPixels.y;
+          let sw = croppedAreaPixels.width;
+          let sh = croppedAreaPixels.height;
+          let dx = 0;
+          let dy = 0;
+          let dw = canvas.width;
+          let dh = canvas.height;
+
+          const scaleX = dw / sw;
+          const scaleY = dh / sh;
+
+          if (sx < 0) {
+            const clip = -sx;
+            dx += clip * scaleX;
+            dw -= clip * scaleX;
+            sw -= clip;
+            sx = 0;
+          }
+          if (sy < 0) {
+            const clip = -sy;
+            dy += clip * scaleY;
+            dh -= clip * scaleY;
+            sh -= clip;
+            sy = 0;
+          }
+          if (sx + sw > userImg.naturalWidth) {
+            const clip = (sx + sw) - userImg.naturalWidth;
+            dw -= clip * scaleX;
+            sw -= clip;
+          }
+          if (sy + sh > userImg.naturalHeight) {
+            const clip = (sy + sh) - userImg.naturalHeight;
+            dh -= clip * scaleY;
+            sh -= clip;
+          }
+
+          if (sw > 0 && sh > 0 && dw > 0 && dh > 0) {
+            ctx.drawImage(userImg, sx, sy, sw, sh, dx, dy, dw, dh);
+          }
           ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
           setResultUrl(canvas.toDataURL("image/png"));
         }
@@ -869,6 +895,19 @@ export default function TwibbonClientEditor({
     ? overlayDims.width / overlayDims.height
     : 1;
 
+  const exactCropSize = containerSize
+    ? {
+        width:
+          containerSize.width / containerSize.height > currentAspectRatio
+            ? containerSize.height * currentAspectRatio
+            : containerSize.width,
+        height:
+          containerSize.width / containerSize.height > currentAspectRatio
+            ? containerSize.height
+            : containerSize.width / currentAspectRatio,
+      }
+    : undefined;
+
   return (
     <div className="flex flex-col md:flex-row items-center md:items-start justify-center gap-8 md:gap-12 max-w-6xl mx-auto">
       {/* Kiri: Canvas / Preview Stage */}
@@ -934,7 +973,9 @@ export default function TwibbonClientEditor({
                     image={imageSrc}
                     crop={crop}
                     zoom={zoom}
-                    aspect={currentAspectRatio}
+                    minZoom={0.1}
+                    maxZoom={5}
+                    cropSize={exactCropSize}
                     onCropChange={setCrop}
                     onCropComplete={onCropComplete}
                     onZoomChange={setZoom}
@@ -1232,9 +1273,9 @@ export default function TwibbonClientEditor({
             <input
               type="range"
               value={zoom}
-              min={1}
-              max={3}
-              step={0.1}
+              min={0.1}
+              max={5}
+              step={0.01}
               onChange={(e) => setZoom(Number(e.target.value))}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-[#4f4d9a]"
               style={{ background: "rgba(79, 77, 154, 0.15)" }}
