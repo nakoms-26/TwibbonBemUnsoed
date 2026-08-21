@@ -33,7 +33,7 @@ export default function TwibbonCard({ twibbon, compactOnMobile = false }: Twibbo
     >
       {/* Image Stage */}
       <div 
-        className={`relative w-full aspect-square border-[#0a031e] overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:12px_12px] bg-white transition-transform group-hover:scale-[1.01] border-2 rounded-2xl ${
+        className={`relative w-full aspect-[3/4] border-[#0a031e] overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:12px_12px] bg-white transition-transform group-hover:scale-[1.01] border-2 rounded-2xl ${
           compactOnMobile ? "max-sm:border-0 max-sm:border-b-[3px] max-sm:rounded-none" : ""
         }`}
       >
