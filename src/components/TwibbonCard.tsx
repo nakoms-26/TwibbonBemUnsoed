@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { User, Users } from "lucide-react";
+import { Users } from "lucide-react";
 
 type TwibbonCardProps = {
   twibbon: {
@@ -31,9 +31,9 @@ export default function TwibbonCard({ twibbon, compactOnMobile = false }: Twibbo
         compactOnMobile ? "max-sm:p-0" : ""
       }`}
     >
-      {/* Image Stage */}
+      {/* Image Stage - Fiks 4:5 */}
       <div 
-        className={`relative w-full aspect-[3/4] border-[#0a031e] overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:12px_12px] bg-white transition-transform group-hover:scale-[1.01] border-2 rounded-2xl ${
+        className={`relative w-full aspect-[4/5] border-[#0a031e] overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:12px_12px] bg-white transition-transform group-hover:scale-[1.01] border-2 rounded-2xl ${
           compactOnMobile ? "max-sm:border-0 max-sm:border-b-[3px] max-sm:rounded-none" : ""
         }`}
       >

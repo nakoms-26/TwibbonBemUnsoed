@@ -144,13 +144,15 @@ export default function TwibbonClientEditor({
       if (!isVideo) {
         try {
           const img = await createImage(twibbon.overlayFile);
+          const width = img.naturalWidth || 1080;
+          const height = Math.round(width * (5 / 4));
           setOverlayDims({
-            width: img.naturalWidth,
-            height: img.naturalHeight,
+            width,
+            height,
           });
         } catch (e) {
           console.error("Gagal memuat overlay", e);
-          setOverlayDims({ width: 1080, height: 1080 });
+          setOverlayDims({ width: 1080, height: 1350 });
         }
       } else {
         // For video: load video metadata to get dimensions
@@ -158,13 +160,15 @@ export default function TwibbonClientEditor({
         vid.crossOrigin = "anonymous";
         vid.src = twibbon.overlayFile;
         vid.onloadedmetadata = () => {
+          const width = vid.videoWidth || 1080;
+          const height = Math.round(width * (5 / 4));
           setOverlayDims({
-            width: vid.videoWidth || 1080,
-            height: vid.videoHeight || 1080,
+            width,
+            height,
           });
         };
         vid.onerror = () => {
-          setOverlayDims({ width: 1080, height: 1080 });
+          setOverlayDims({ width: 1080, height: 1350 });
         };
         vid.load();
       }
@@ -220,6 +224,10 @@ export default function TwibbonClientEditor({
         }
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
+            if (canvas.width !== 1080 || canvas.height !== 1350) {
+              canvas.width = 1080;
+              canvas.height = 1350;
+            }
             const raw =
               twibbon.config?.chromaKey?.color ?? twibbon.config?.chromaColor;
             let chromaColor = "#00FF00";
@@ -323,11 +331,13 @@ export default function TwibbonClientEditor({
       const userImg = await createImage(imageSrc);
 
       if (!isVideo) {
-        // Client-side image compositing (unchanged)
+        // Client-side image compositing (fiks 4:5)
         const overlayImg = await createImage(twibbon.overlayFile);
         const canvas = document.createElement("canvas");
-        canvas.width = overlayDims.width;
-        canvas.height = overlayDims.height;
+        const canvasWidth = overlayDims?.width || overlayImg.naturalWidth || 1080;
+        const canvasHeight = Math.round(canvasWidth * (5 / 4));
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
         const ctx = canvas.getContext("2d");
 
         if (ctx) {
@@ -380,9 +390,9 @@ export default function TwibbonClientEditor({
         const videoElement = videoRef.current;
         if (!videoElement) throw new Error("Video element tidak ditemukan");
 
-        // Selalu Full HD — dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
-        const encodeWidth = Math.ceil(overlayDims.width / 2) * 2;
-        const encodeHeight = Math.ceil(overlayDims.height / 2) * 2;
+        // Selalu Full HD 4:5 — dimensi kelipatan 2 (wajib untuk kompatibilitas encoder)
+        const encodeWidth = 1080;
+        const encodeHeight = 1350;
 
         // Canvas WebGL untuk chroma key & compositing (GPU)
         const chromaCanvas = document.createElement("canvas");
@@ -891,20 +901,19 @@ export default function TwibbonClientEditor({
     }
   };
 
-  const currentAspectRatio = overlayDims
-    ? overlayDims.width / overlayDims.height
-    : 1;
+  // Rasio paten twibbon fiks 4:5 (0.8)
+  const FIXED_ASPECT_RATIO = 4 / 5;
 
   const exactCropSize = containerSize
     ? {
         width:
-          containerSize.width / containerSize.height > currentAspectRatio
-            ? containerSize.height * currentAspectRatio
+          containerSize.width / containerSize.height > FIXED_ASPECT_RATIO
+            ? containerSize.height * FIXED_ASPECT_RATIO
             : containerSize.width,
         height:
-          containerSize.width / containerSize.height > currentAspectRatio
+          containerSize.width / containerSize.height > FIXED_ASPECT_RATIO
             ? containerSize.height
-            : containerSize.width / currentAspectRatio,
+            : containerSize.width / FIXED_ASPECT_RATIO,
       }
     : undefined;
 
@@ -929,9 +938,9 @@ export default function TwibbonClientEditor({
         )}
         {resultUrl ? (
           <div
-            className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden shadow-xl"
+            className="relative w-full max-w-xl rounded-[2rem] overflow-hidden shadow-xl"
             style={{
-              aspectRatio: currentAspectRatio,
+              aspectRatio: "4 / 5",
               background: "#ffffff",
               border: "1px solid rgba(79, 77, 154, 0.15)",
             }}
@@ -942,7 +951,7 @@ export default function TwibbonClientEditor({
                 controls
                 autoPlay
                 loop
-                className="w-full h-full object-contain bg-black"
+                className="w-full h-full object-cover bg-black"
               />
             ) : (
               <Image
@@ -951,16 +960,16 @@ export default function TwibbonClientEditor({
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
                 unoptimized
-                className="object-contain"
+                className="object-cover"
               />
             )}
           </div>
         ) : (
           <div
             ref={containerRef}
-            className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden border-2 border-dashed transition-all shadow-xl"
+            className="relative w-full max-w-xl rounded-[2rem] overflow-hidden border-2 border-dashed transition-all shadow-xl"
             style={{
-              aspectRatio: currentAspectRatio,
+              aspectRatio: "4 / 5",
               background: "#ffffff",
               borderColor: "rgba(79, 77, 154, 0.25)",
             }}
@@ -973,6 +982,7 @@ export default function TwibbonClientEditor({
                     image={imageSrc}
                     crop={crop}
                     zoom={zoom}
+                    aspect={4 / 5}
                     minZoom={0.1}
                     maxZoom={5}
                     cropSize={exactCropSize}
@@ -1020,14 +1030,16 @@ export default function TwibbonClientEditor({
                         : {
                             width: "100%",
                             height: "100%",
-                            objectFit: "contain",
+                            objectFit: "cover",
                           }
                     }
                     onLoadedMetadata={(e) => {
                       e.currentTarget.play().catch(() => {});
+                      const width = e.currentTarget.videoWidth || 1080;
+                      const height = Math.round(width * (5 / 4));
                       setOverlayDims({
-                        width: e.currentTarget.videoWidth,
-                        height: e.currentTarget.videoHeight,
+                        width,
+                        height,
                       });
                     }}
                     onProgress={(e) => {
@@ -1049,7 +1061,7 @@ export default function TwibbonClientEditor({
                   {/* Canvas WebGL hanya terlihat saat imageSrc ada */}
                   <canvas
                     ref={previewCanvasRef}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     style={{ display: imageSrc ? "block" : "none" }}
                   />
                 </>
@@ -1060,7 +1072,7 @@ export default function TwibbonClientEditor({
                   alt="Overlay"
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-contain opacity-100"
+                  className="object-cover opacity-100"
                 />
               )}
             </div>
