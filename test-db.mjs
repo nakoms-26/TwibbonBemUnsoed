@@ -1,10 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { config } from 'dotenv';
 
-config();
+config({ override: true });
+console.log('Testing DATABASE_URL:', process.env.DATABASE_URL?.replace(/:[^:@]+@/, ':***@'));
 
 const prisma = new PrismaClient({
   log: ['error'],
+  datasourceUrl: process.env.DATABASE_URL,
 });
 
 console.log('Mencoba koneksi ke MySQL Hostinger...');

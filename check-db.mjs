@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client';
+import { config } from 'dotenv';
+
+config({ override: true });
 
 const prisma = new PrismaClient();
 
