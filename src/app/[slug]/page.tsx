@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ? (twibbon.thumbnail.startsWith("http")
         ? `${twibbon.thumbnail}${timestamp}`
         : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
-    : `${baseUrl}/logo.png`;
+    : `${baseUrl}/opengraph-image`;
 
   const pageTitle = twibbon.title.toUpperCase();
   const pageDesc =
