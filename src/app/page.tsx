@@ -6,6 +6,34 @@ import Footer from "@/components/Footer";
 
 export const revalidate = 0;
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://twibbon.bem-unsoed.com";
+
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      url: siteUrl,
+      name: "Twibbon BEM Unsoed",
+      description:
+        "Platform resmi pembuatan twibbon foto dan video BEM Universitas Jenderal Soedirman (BEM Unsoed).",
+      inLanguage: "id-ID",
+      publisher: {
+        "@id": `${siteUrl}/#organization`,
+      },
+    },
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}/#organization`,
+      name: "BEM Universitas Jenderal Soedirman",
+      alternateName: "BEM Unsoed",
+      url: "https://bem-unsoed.com",
+      logo: `${siteUrl}/logo.png`,
+    },
+  ],
+};
+
 export default function Home() {
   return (
     <div
@@ -14,6 +42,10 @@ export default function Home() {
         background: "linear-gradient(160deg, #1e0a4a 0%, #2d1b69 40%, #1a0f3d 100%)",
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+      />
       {/* Ambient Radial Glow */}
       <div
         className="absolute top-[-10%] left-[-10%] w-[700px] h-[700px] rounded-full pointer-events-none blur-3xl opacity-30"

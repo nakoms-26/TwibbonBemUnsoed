@@ -3,7 +3,6 @@ import {
   ArrowYellowRight,
   CircularBadge,
 } from "@/components/ui/Accents";
-import Link from "next/link";
 import { Archivo_Black } from "next/font/google";
 
 const archivoBlack = Archivo_Black({
@@ -18,17 +17,20 @@ export default function HeroSection({
   compact?: boolean;
 }) {
   return (
-    <main
+    <section
       className={`relative z-10 px-4 flex flex-col items-center justify-center w-full max-w-[1440px] mx-auto ${compact ? "pt-12 pb-16 md:pt-16 md:pb-24" : "flex-1 pt-24 pb-16 md:pt-32 md:pb-20"}`}
     >
       {/* Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem] z-[-1] pointer-events-none" />
 
       <div className="relative w-full max-w-5xl mx-auto flex flex-col items-center justify-center text-center z-10 mt-4 mb-8">
-        {/* Massive Typography */}
-        <div className="w-full flex flex-col items-center relative z-10 space-y-2 md:space-y-4">
-          <div className="w-full flex justify-start pl-[10%] md:pl-[20%] relative z-30">
-            <h1
+        {/* Massive Typography - Unified Semantic H1 for SEO */}
+        <h1
+          className="w-full flex flex-col items-center relative z-10 space-y-2 md:space-y-4 m-0 p-0"
+          aria-label="#BEM UNSOED Twibbon"
+        >
+          <span className="w-full flex justify-start pl-[10%] md:pl-[20%] relative z-30">
+            <span
               className={`text-[clamp(4rem,11vw,140px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase ${archivoBlack.className}`}
               style={{
                 color: "#FDB927",
@@ -36,11 +38,11 @@ export default function HeroSection({
               }}
             >
               #BEM
-            </h1>
-          </div>
+            </span>
+          </span>
 
-          <div className="w-full flex justify-center relative z-20">
-            <h1
+          <span className="w-full flex justify-center relative z-20">
+            <span
               className={`text-[clamp(4.5rem,14vw,200px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase ${archivoBlack.className}`}
               style={{
                 color: "#ffffff",
@@ -48,11 +50,11 @@ export default function HeroSection({
               }}
             >
               UNSOED
-            </h1>
-          </div>
+            </span>
+          </span>
 
-          <div className="w-full flex justify-end pr-[5%] md:pr-[20%] relative z-10">
-            <h1
+          <span className="w-full flex justify-end pr-[5%] md:pr-[20%] relative z-10">
+            <span
               className={`text-[clamp(4rem,11vw,140px)] leading-[0.85] tracking-tighter m-0 p-0 uppercase ${archivoBlack.className}`}
               style={{
                 color: "#ffffff",
@@ -60,9 +62,9 @@ export default function HeroSection({
               }}
             >
               twibbon
-            </h1>
-          </div>
-        </div>
+            </span>
+          </span>
+        </h1>
 
         {/* Absolute Overlays */}
         <div className="absolute inset-0 w-full h-full pointer-events-none">
@@ -80,6 +82,6 @@ export default function HeroSection({
           </div>
         </div>
       </div>
-    </main>
+    </section>
   );
 }

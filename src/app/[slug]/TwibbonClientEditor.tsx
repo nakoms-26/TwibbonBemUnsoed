@@ -17,22 +17,42 @@ import LiveCounter from "@/components/LiveCounter";
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new window.Image();
-    image.addEventListener("load", () => resolve(image));
-    image.addEventListener("error", (error) => {
-      console.error("Image load error event:", error);
-      reject(
-        new Error(
-          `Gagal memuat gambar. Pastikan server gambar mengizinkan CORS. URL: ${url}`,
-        ),
-      );
-    });
 
     if (url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("/")) {
+      image.addEventListener("load", () => resolve(image));
+      image.addEventListener("error", (error) => {
+        console.error("Image load error event:", error);
+        reject(new Error(`Gagal memuat gambar dari URL: ${url}`));
+      });
       image.src = url;
-    } else {
-      image.setAttribute("crossOrigin", "anonymous");
-      image.src = `/api/proxy?url=${encodeURIComponent(url)}`;
+      return;
     }
+
+    image.setAttribute("crossOrigin", "anonymous");
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+
+    const tryFallback = () => {
+      const fallbackImg = new window.Image();
+      fallbackImg.setAttribute("crossOrigin", "anonymous");
+      fallbackImg.addEventListener("load", () => resolve(fallbackImg));
+      fallbackImg.addEventListener("error", (err) => {
+        console.error("Image fallback load error:", err);
+        reject(
+          new Error(
+            `Gagal memuat gambar baik via proxy maupun langsung. Pastikan server gambar mengizinkan CORS. URL: ${url}`,
+          ),
+        );
+      });
+      fallbackImg.src = url;
+    };
+
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", () => {
+      console.warn(`Proxy gagal memuat ${url}, mencoba fallback direct URL...`);
+      tryFallback();
+    });
+
+    image.src = proxyUrl;
   });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

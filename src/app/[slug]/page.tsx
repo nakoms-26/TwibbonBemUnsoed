@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const baseUrl = "https://www.twibbon.bem-unsoed.com";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://twibbon.bem-unsoed.com";
   const timestamp = twibbon.updatedAt ? `?t=${new Date(twibbon.updatedAt).getTime()}` : "";
   const imageUrl = twibbon.thumbnail
     ? (twibbon.thumbnail.startsWith("http")
@@ -42,16 +42,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         : `${baseUrl}${twibbon.thumbnail}${timestamp}`)
     : `${baseUrl}/logo.png`;
 
-  const pageTitle = `${twibbon.title.toUpperCase()} - BEM Unsoed`;
+  const pageTitle = twibbon.title.toUpperCase();
   const pageDesc =
     twibbon.description ||
-    `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk pasang foto kamu.`;
+    `Dukung kampanye ${twibbon.title} bersama BEM Unsoed! Klik link ini untuk memasang foto atau video twibbon kamu dengan mudah.`;
 
   return {
     title: pageTitle,
     description: pageDesc,
+    alternates: {
+      canonical: `/${slug}`,
+    },
+    keywords: [
+      twibbon.title,
+      `twibbon ${twibbon.title}`,
+      "twibbon bem unsoed",
+      "twibbon unsoed",
+      "bingkai foto unsoed",
+      "bem unsoed",
+    ],
     openGraph: {
-      title: pageTitle,
+      title: `${pageTitle} | Twibbon BEM Unsoed`,
       description: pageDesc,
       url: `${baseUrl}/${slug}`,
       siteName: "Twibbon BEM Unsoed",
@@ -68,7 +79,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: pageTitle,
+      title: `${pageTitle} | Twibbon BEM Unsoed`,
       description: pageDesc,
       images: [imageUrl],
     },
@@ -104,6 +115,32 @@ export default async function PublicTwibbonPage({
       : twibbon.config,
   };
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://twibbon.bem-unsoed.com";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: twibbon.title,
+    description: twibbon.description || `Twibbon resmi ${twibbon.title} oleh BEM Unsoed`,
+    url: `${baseUrl}/${slug}`,
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "All",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "IDR",
+    },
+    image: twibbon.thumbnail
+      ? (twibbon.thumbnail.startsWith("http")
+          ? twibbon.thumbnail
+          : `${baseUrl}${twibbon.thumbnail}`)
+      : `${baseUrl}/logo.png`,
+    publisher: {
+      "@type": "Organization",
+      name: "BEM Universitas Jenderal Soedirman",
+      url: "https://bem-unsoed.com",
+    },
+  };
+
   return (
     <div
       className="min-h-screen flex flex-col justify-between relative overflow-hidden font-sans"
@@ -111,6 +148,10 @@ export default async function PublicTwibbonPage({
         background: "linear-gradient(160deg, #1e0a4a 0%, #2d1b69 40%, #1a0f3d 100%)",
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Grid Pattern Accent Overlay */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.07]"

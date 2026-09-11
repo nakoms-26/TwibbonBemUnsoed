@@ -13,8 +13,31 @@ const archivoBlack = Archivo_Black({
 });
 
 export const metadata: Metadata = {
-  title: "Daftar Twibbon - BEM Unsoed",
-  description: "Jelajahi dan ikuti berbagai twibbon resmi dari BEM Unsoed.",
+  title: "Katalog Twibbon",
+  description:
+    "Jelajahi dan ikuti berbagai kampanye twibbon resmi foto dan video dari BEM Unsoed. Temukan bingkai favoritmu dan semarakkan berbagai kegiatan kampus!",
+  alternates: {
+    canonical: "/twibbons",
+  },
+  keywords: [
+    "katalog twibbon unsoed",
+    "daftar twibbon bem unsoed",
+    "twibbon unsoed",
+    "bingkai foto bem unsoed",
+    "kampanye bem unsoed",
+  ],
+  openGraph: {
+    title: "Katalog Twibbon | Twibbon BEM Unsoed",
+    description:
+      "Jelajahi dan ikuti berbagai kampanye twibbon resmi foto dan video dari BEM Unsoed.",
+    url: "/twibbons",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Katalog Twibbon | Twibbon BEM Unsoed",
+    description:
+      "Jelajahi dan ikuti berbagai kampanye twibbon resmi foto dan video dari BEM Unsoed.",
+  },
 };
 
 export const revalidate = 0;
