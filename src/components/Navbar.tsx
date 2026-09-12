@@ -64,8 +64,10 @@ export default function Navbar() {
 
           {/* Right Section: Desktop CTA + Mobile Toggle */}
           <div className="flex items-center gap-4 z-[60]">
-            <Link
-              href="/admin/login"
+            <a
+              href="https://www.instagram.com/nakomisme/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hidden md:flex items-center gap-2 px-6 py-2.5 rounded-full text-xs md:text-sm font-black uppercase tracking-wider text-black transition-all duration-300 hover:scale-105 shadow-md"
               style={{
                 background: "#FDB927",
@@ -74,7 +76,7 @@ export default function Navbar() {
             >
               <Plus size={16} strokeWidth={3} />
               <span>Buat Twibbon</span>
-            </Link>
+            </a>
 
             {/* Mobile Hamburger Toggle */}
             <button
@@ -117,8 +119,10 @@ export default function Navbar() {
               Katalog Twibbon
             </Link>
 
-            <Link
-              href="/admin/login"
+            <a
+              href="https://www.instagram.com/nakomisme/"
+              target="_blank"
+              rel="noopener noreferrer"
               onClick={() => setIsMobileMenuOpen(false)}
               className="mt-8 p-4 rounded-full text-xl font-black uppercase tracking-widest text-black shadow-md transition-all active:scale-95"
               style={{
@@ -127,7 +131,7 @@ export default function Navbar() {
               }}
             >
               BUAT TWIBBON
-            </Link>
+            </a>
           </div>
         </div>
       )}

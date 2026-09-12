@@ -15,10 +15,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AdminRootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return <>{children}</>;
+import { redirect } from "next/navigation";
+
+export default function AdminRootLayout() {
+  redirect("https://unsoed.link/app/twibbons");
 }
